@@ -521,6 +521,26 @@ function applyComplex(c,f,force){ const set=(k,v)=>{ if(v!=null&&v!==''&&(force|
 function applyType(t,f,force){ const set=(k,v)=>{ if(v!=null&&v!==''&&(force||!f[k])) f[k]=String(v); };
   set('sup',t.sup); set('ex',t.ex); set('rooms',t.rooms); set('baths',t.baths); f.py=String(t.sup?pyOf(t.sup):pyOf(t.ex)); }
 
+
+/* ---------- 향 자동 추정: 같은 단지·동·라인(호수 끝자리)의 지난 매물 기록에서 ---------- */
+function dongHo(text,cx){ const t=String(text||'').replace(/01[0-9][\s-]?\d{3,4}[\s-]?\d{4}/g,' ');
+  let m=t.match(/(\d{1,4})\s*동\s*(\d{1,5})\s*호/); if(!m&&cx) m=t.match(/(\d{2,4})\s*[-–]\s*(\d{3,5})(?!\d)/);
+  return m?{dong:m[1],ho:+m[2],line:(+m[2])%100}:null; }
+function dirStats(cx){ const st={}; if(!cx) return st;
+  for(const l of S.L){ if(!l.dir) continue; const c=findComplex((l.name||'')+' '+(l.addr||'')); if(c!==cx) continue; const dh=dongHo(l.addr,cx); if(!dh) continue;
+    const k=dh.dong+'-'+dh.line; (st[k]=st[k]||{dong:dh.dong,line:dh.line,dirs:{}}).dirs[l.dir]=(st[k].dirs[l.dir]||0)+1; }
+  return st; }
+const topOf=o=>Object.entries(o).sort((a,b)=>b[1]-a[1])[0];
+function guessDir(cx,dongho){ const dh=dongHo(dongho,cx); if(!cx||!dh) return null; const st=dirStats(cx);
+  const same=st[dh.dong+'-'+dh.line]; if(same){ const [d,n]=topOf(same.dirs); return {dir:d,why:`${dh.dong}동 ${dh.line}호 라인 기록 ${n}건`}; }
+  const dongAll={}; Object.values(st).filter(x=>x.dong===dh.dong).forEach(x=>Object.entries(x.dirs).forEach(([d,n])=>dongAll[d]=(dongAll[d]||0)+n));
+  if(Object.keys(dongAll).length===1){ const [d,n]=topOf(dongAll); return {dir:d,why:`${dh.dong}동 다른 라인 기록 ${n}건 — 라인 확인 필요`,weak:true}; }
+  return null; }
+function dirSummary(cx){ const st=Object.values(dirStats(cx)); if(!st.length) return '';
+  const g={}; st.forEach(x=>{ const [d]=topOf(x.dirs); const k=x.dong+'|'+d; (g[k]=g[k]||[]).push(x.line); });
+  return Object.entries(g).sort((a,b)=>a[0].split('|')[0]-b[0].split('|')[0]||Math.min(...a[1])-Math.min(...b[1])).map(([k,ls])=>{ const [dong,d]=k.split('|'); return `${dong}동 ${ls.sort((a,b)=>a-b).join('·')}호 라인 ${d}`; }).join(' / '); }
+function autoDir(force){ const F=SELL.f; const cx=findComplex(F.name); const g=guessDir(cx,F.dongho||F.addr);
+  SELL.dirHint=g?`${g.dir} 추정 · ${g.why}`:''; if(g&&(force||!F.dir)){ F.dir=g.dir; (SELL.filled=SELL.filled||new Set()).add('dir'); } }
 /* ---------- 매물장 양식 / 문자 붙여넣기 → 자동 입력 ---------- */
 function parseTemplate(text){
   const T=String(text||'').replace(/\r/g,''); const f={}; const lines=T.split('\n');
@@ -589,7 +609,7 @@ function applyParsed(p){ const F=SELL.f; const filled=[];
   for(const [k,v] of Object.entries(p.f)){ if(v==null||v==='') continue; if(k==='deals'){ F.deals=v; filled.push('deals'); continue; } F[k]=v; filled.push(k); }
   if(p.cx) applyComplex(p.cx,F,false);
   if(p.cx&&F.sup){ const t=(p.cx.types||[]).find(t=>t.sup&&Math.abs(t.sup-(+F.sup))<1.5); if(t) applyType(t,F,false); }
-  SELL.filled=new Set(filled); return filled.length; }
+  SELL.filled=new Set(filled); autoDir(false); return filled.length; }
 
 /* ---------- 빠른 접수 화면 ---------- */
 function quickSell(){ const f=SELL.f; const cx=findComplex(f.name);
@@ -609,7 +629,7 @@ function quickSell(){ const f=SELL.f; const cx=findComplex(f.name);
         <label class="field">${lbl('동 · 호수','dongho')}${inp('f-dongho','dongho',f.dongho,'예: 101동 504호')}</label>
         <label class="field full">${lbl('주소 (단지 밖 빌라·단독은 여기에)','addr')}${inp('f-addr','addr',f.addr,'예: 소사본동 219-24 진영리더스빌 1동 303호')}</label>
       </div>
-      ${cx?`<div class="cxcard"><div><b>${esc(cx.name)}</b> <span class="sub" style="margin:0">${esc(complexLine(cx))}</span></div>
+      ${cx?`<div class="cxcard"><div><b>${esc(cx.name)}</b> <span class="sub" style="margin:0">${esc(complexLine(cx))}</span></div>${dirSummary(cx)?`<div class="sub" style="font-size:13px;margin-top:4px">향 (매물장 기록): ${esc(dirSummary(cx))}</div>`:''}
         ${cx.types&&cx.types.length?`<div class="chips" style="margin-top:8px">${cx.types.map((t,i)=>`<button class="chip ${f.sup&&t.sup&&Math.abs(t.sup-(+f.sup))<1.5||(!t.sup&&f.ex&&Math.abs(t.ex-(+f.ex))<1)?'on':''}" data-act="pickType" data-i="${i}">${esc(typeLabel(t))}</button>`).join('')}</div><small class="sub" style="font-size:12px">평형을 누르면 면적·방·욕실이 채워집니다.</small>`:''}</div>`:(f.name?`<p class="sub" style="font-size:13px">등록되지 않은 단지입니다. 연식·평형을 직접 적어 주세요.</p>`:'')}
       <div class="field" style="margin-top:12px">${lbl('집 종류','cat')}${fchips('cat',CATS,f.cat)}</div>
     </div>
@@ -629,7 +649,7 @@ function quickSell(){ const f=SELL.f; const cx=findComplex(f.name);
       <label class="field">${lbl('방','rooms')}${inp('f-rooms','rooms',f.rooms,'예: 3','number')}</label>
       <label class="field">${lbl('욕실','baths')}${inp('f-baths','baths',f.baths,'예: 2','number')}</label>
       <div class="field full"><h3 style="margin-top:6px">3. 향 · 관리비 / 5. 주차</h3></div>
-      <label class="field">${lbl('향','dir')}${sel('f-dir','dir',DIRS,f.dir)}</label>
+      <label class="field">${lbl('향','dir')}${sel('f-dir','dir',DIRS,f.dir)}${SELL.dirHint?`<small class="hint">${esc(SELL.dirHint)}</small>`:''}</label>
       <label class="field">${lbl('관리비','fee')}${inp('f-fee','fee',f.fee,'예: 18만')}</label>
       <div class="field">${lbl('주차','park')}${fchips('park',['가능','불가'],f.park)}</div>
       <div class="field">${lbl('엘리베이터','elev')}${fchips('elev',['있음','없음'],f.elev)}</div>
@@ -922,8 +942,9 @@ document.addEventListener('input',e=>{ const t=e.target;
 document.addEventListener('change',async e=>{ const t=e.target;
   if(t.dataset.qc){ qOf(t.dataset.scope)[t.dataset.qc]=t.checked; partial(); return; }
   if(t.dataset.q && t.tagName==='SELECT'){ qOf(t.dataset.scope)[t.dataset.q]=t.value; partial(); return; }
-  if(t.id==='f-name'){ const c=findComplex(t.value); if(c){ applyComplex(c,SELL.f,false); toast(c.name+' 단지 정보를 채웠습니다'); } render(); return; }
-  if(t.dataset.f && t.tagName==='SELECT'){ SELL.f[t.dataset.f]=t.value; render(); return; }
+  if(t.id==='f-name'){ const c=findComplex(t.value); if(c){ applyComplex(c,SELL.f,false); toast(c.name+' 단지 정보를 채웠습니다'); } autoDir(false); render(); return; }
+  if(t.id==='f-dongho'){ const was=SELL.f.dir; autoDir(SELL.filled&&SELL.filled.has('dir')); if(SELL.f.dir!==was) toast('향을 '+SELL.f.dir+'(으)로 채웠습니다'); render(); return; }
+  if(t.dataset.f && t.tagName==='SELECT'){ SELL.f[t.dataset.f]=t.value; if(t.dataset.f==='dir'&&SELL.filled) SELL.filled.delete('dir'); render(); return; }
   if(t.dataset.deal && t.dataset.dk==='t'){ const d=SELL.f.deals[+t.dataset.deal]; d.t=t.value; render(); return; }
   if(t.dataset.act==='sort'){ FIND.sort=t.value; render(); return; }
   if(t.dataset.act==='clientSt'){ await updateRec('clients',t.dataset.id,{st:t.value},'상태를 바꿨습니다'); return; }
@@ -962,7 +983,7 @@ document.addEventListener('click',async e=>{
   if(a==='addDeal'){ SELL.f.deals.push({t:'전세',p:'',r:''}); render(); return; }
   if(a==='delDeal'){ SELL.f.deals.splice(+t.dataset.k,1); render(); return; }
   if(a==='copyTpl'){ copy($('#tplBox').textContent,t); return; }
-  if(a==='resetSell'){ SELL.f=emptyF(); SELL.step=0; SELL.editId=null; SELL.saved=null; SELL.paste=''; SELL.pasteMsg=''; SELL.filled=null; render(); window.scrollTo(0,0); return; }
+  if(a==='resetSell'){ SELL.f=emptyF(); SELL.step=0; SELL.editId=null; SELL.saved=null; SELL.paste=''; SELL.pasteMsg=''; SELL.filled=null; SELL.dirHint=''; render(); window.scrollTo(0,0); return; }
   if(a==='resetSeek'){ SEEK.step=0; SEEK.q=emptyQ(); SEEK.who={name:'',phone:'',people:'',movein:'',note:''}; SEEK.picks=[]; render(); window.scrollTo(0,0); return; }
   if(a==='clearFind'){ FIND.q={...emptyQ(),showAll:FIND.q.showAll}; render(); return; }
   if(a==='clFilter'){ CL.filter=t.dataset.k; render(); return; }
