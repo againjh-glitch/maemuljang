@@ -17,11 +17,20 @@ function 처음실행() {
   const pw = passwords_();
   Logger.log('연결 확인: ' + ss.getName());
   Logger.log('매물 ' + (ss.getSheetByName('매물').getLastRow() - 1) + '건, 손님 ' + (ss.getSheetByName('손님').getLastRow() - 1) + '건');
+  Logger.log('일정 ' + (ss.getSheetByName('일정') ? (ss.getSheetByName('일정').getLastRow() - 1) + '건' : '탭 없음 (첫 일정 저장 때 자동 생성)'));
   Logger.log('사무실 비밀번호: ' + (pw.office ? '입력됨' : '비어 있음 → 설정 탭 B1에 입력하세요'));
   Logger.log('열람 비밀번호: ' + (pw.full ? '입력됨' : '비어 있음 → 설정 탭 B2에 입력하세요'));
 }
 
-const SHEETS = { listings: '매물', clients: '손님' };
+const SHEETS = { listings: '매물', clients: '손님', schedule: '일정' };
+const SKIP = ['설정', '사용법'];
+// 위 목록에 없는 탭 이름도 그대로 받아서 저장 (앞으로 탭이 늘어나도 다시 배포할 필요 없음)
+function sheetName_(key) {
+  if (SHEETS[key]) return SHEETS[key];
+  key = String(key || '');
+  if (!key || SKIP.indexOf(key) >= 0) return null;
+  return key;
+}
 // 열람 비밀번호가 있어야 보이는 칸
 const SECRET = {
   '매물': ['연락처', '내놓은분', '집보는법', '원문'],
@@ -67,14 +76,22 @@ function readSheet_(name, lv) {
 function doGet(e) {
   const lv = level_(e && e.parameter && e.parameter.key);
   if (!lv) return out_({ ok: false, error: 'password' });
-  return out_({ ok: true, level: lv, listings: readSheet_(SHEETS.listings, lv), clients: readSheet_(SHEETS.clients, lv) });
+  const res = { ok: true, level: lv, version: 2 };
+  Object.keys(SHEETS).forEach(function (k) { res[k] = readSheet_(SHEETS[k], lv); });
+  // 그 밖의 탭은 tabs 아래로
+  const known = Object.keys(SHEETS).map(function (k) { return SHEETS[k]; }).concat(SKIP);
+  res.tabs = {};
+  SpreadsheetApp.getActive().getSheets().forEach(function (sh) {
+    const n = sh.getName(); if (known.indexOf(n) < 0) res.tabs[n] = readSheet_(n, lv);
+  });
+  return out_(res);
 }
 
 function doPost(e) {
   const b = JSON.parse(e.postData.contents);
   const lv = level_(b.key);
   if (!lv) return out_({ ok: false, error: 'password' });
-  const name = SHEETS[b.sheet];
+  const name = sheetName_(b.sheet);
   if (!name) return out_({ ok: false, error: 'sheet' });
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -91,7 +108,7 @@ function doPost(e) {
     for (let i = 1; i < values.length; i++) if (String(values[i][0]) === String(b.id)) { row = i + 1; break; }
 
     if (b.action === 'delete') {
-      if (lv < 2) return out_({ ok: false, error: 'level' });   // 삭제는 열람 비밀번호가 있어야
+      if (lv < 2 && name !== SHEETS.schedule) return out_({ ok: false, error: 'level' });   // 매물·손님 삭제는 열람 비밀번호가 있어야 (일정은 누구나)
       if (row > 0) sh.deleteRow(row);
       return out_({ ok: true });
     }
