@@ -168,6 +168,7 @@ details.panel summary{cursor:pointer;display:flex;gap:10px;flex-wrap:wrap;align-
 section > .panel + .panel, section > .panel + details, section > details + .panel{margin-top:14px}
 
 /* 일정 */
+.mtitle{margin:18px 0 0;font-size:16px} .mcell.past{opacity:.55}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:12px}
 .day{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:180px;display:flex;flex-direction:column;min-width:0}
 .day.today{border-color:var(--brand);box-shadow:inset 0 3px 0 var(--brand)}
@@ -853,7 +854,7 @@ const weekStart=iso=>{ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()-
 const DOW=['일','월','화','수','목','금','토'];
 const dowOf=iso=>new Date(iso+'T00:00:00').getDay();
 const mdOf=iso=>`${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
-const SCH={mode:(()=>{ try{ return localStorage.getItem('mj_smode')||'week'; }catch(e){ return 'week'; } })(),anchor:'',who:''};
+const SCH={mode:(()=>{ try{ return localStorage.getItem('mj_smode2')||'month'; }catch(e){ return 'month'; } })(),anchor:'',who:'',past:0};
 function evsOn(iso){ return S.E.filter(e=>e.date===iso&&(!SCH.who||e.who===SCH.who)).sort((a,b)=>(a.time||'99').localeCompare(b.time||'99')); }
 function evLabel(e){ const c=e.cid&&S.C.find(x=>x.id===e.cid); const l=e.lid&&S.L.find(x=>x.id===e.lid);
   return e.title||[e.type,c&&(c.name||'손님'),l&&title(l)].filter(Boolean).join(' · '); }
@@ -872,28 +873,36 @@ function viewSchedule(){ if(!SCH.anchor) SCH.anchor=todayISO(); const T=todayISO
     body=`<div class="week">${days.map(d=>{ const ev=evsOn(d); const dw=dowOf(d);
       return `<div class="day ${d===T?'today':''} ${dw===0?'sun':dw===6?'sat':''}"><div class="day-h"><b>${mdOf(d)}</b> <span>${DOW[dw]}</span>${d===T?' <em class="tdy">오늘</em>':''}<button class="addbtn" data-act="newEvent" data-date="${d}" aria-label="${mdOf(d)} 일정 추가">+</button></div>
         <div class="day-b">${ev.map(e=>evChip(e)).join('')||'<span class="none">일정 없음</span>'}</div></div>`; }).join('')}</div>`; }
-  else if(SCH.mode==='month'){ const y=+a.slice(0,4), m=+a.slice(5,7); const first=`${y}-${pad2(m)}-01`; const gs=weekStart(first);
-    title2=`${y}년 ${m}월`;
-    const cells=[...Array(42)].map((_,i)=>addDays(gs,i)); const rows=cells[35].slice(5,7)!==pad2(m)?cells.slice(0,35):cells;
-    body=`<div class="month"><div class="mhead">${['월','화','수','목','금','토','일'].map(x=>`<div>${x}</div>`).join('')}</div><div class="mgrid">${rows.map(d=>{ const ev=evsOn(d); const dw=dowOf(d);
-      return `<div class="mcell ${d.slice(5,7)!==pad2(m)?'out':''} ${d===T?'today':''} ${dw===0?'sun':dw===6?'sat':''}"><div class="mday"><button class="linkday" data-act="gotoWeek" data-date="${d}">${+d.slice(8)}</button><button class="addbtn" data-act="newEvent" data-date="${d}" aria-label="${mdOf(d)} 일정 추가">+</button></div>
-        ${ev.slice(0,3).map(e=>evChip(e,true)).join('')}${ev.length>3?`<button class="more" data-act="gotoWeek" data-date="${d}">+${ev.length-3}건 더</button>`:''}</div>`; }).join('')}</div></div>`; }
-  else { const end=addDays(T,60); const up=S.E.filter(e=>e.date&&e.date>=T&&e.date<=end&&e.st!=='cancel'&&(!SCH.who||e.who===SCH.who)).sort((x,y)=>(x.date+(x.time||'99')).localeCompare(y.date+(y.time||'99')));
+  else if(SCH.mode==='month'){ const ty=+T.slice(0,4), tm=+T.slice(5,7);
+    const ym=k=>{ const d=new Date(ty,tm-1+k,1); return [d.getFullYear(),d.getMonth()+1]; };
+    const hasEv=([y,m])=>S.E.some(e=>e.date&&e.date.startsWith(`${y}-${pad2(m)}`)&&e.st!=='cancel'&&(!SCH.who||e.who===SCH.who));
+    const months=[]; for(let k=-SCH.past;k<0;k++) months.push(ym(k)); months.push(ym(0)); for(let k=1;k<=3;k++){ const x=ym(k); if(hasEv(x)) months.push(x); }
+    const f=months[0], l=months[months.length-1]; title2=months.length>1?`${f[0]}년 ${f[1]}월 ~ ${l[0]!==f[0]?l[0]+'년 ':''}${l[1]}월`:`${f[0]}년 ${f[1]}월`;
+    const later=[1,2,3].map(ym).filter(x=>!hasEv(x)).length;
+    body=months.map(([y,m])=>monthGrid(y,m,T)).join('')+`<p class="sub" style="font-size:13px;margin-top:10px">이번 달과, 일정이 잡힌 다음 3달까지 보여 줍니다.${later?' 일정이 없는 달은 숨겼습니다.':''}</p>`; }
+  else { const ed=new Date(+T.slice(0,4),+T.slice(5,7)+3,0); const end=isoOf(ed); const up=S.E.filter(e=>e.date&&e.date>=T&&e.date<=end&&e.st!=='cancel'&&(!SCH.who||e.who===SCH.who)).sort((x,y)=>(x.date+(x.time||'99')).localeCompare(y.date+(y.time||'99')));
     const over=S.E.filter(e=>e.date&&e.date<T&&e.st==='plan'&&(!SCH.who||e.who===SCH.who)).sort((x,y)=>y.date.localeCompare(x.date));
-    title2='다가오는 60일'; const g={}; up.forEach(e=>(g[e.date]=g[e.date]||[]).push(e));
+    title2='오늘부터 3달 뒤 말일까지'; const g={}; up.forEach(e=>(g[e.date]=g[e.date]||[]).push(e));
     body=`${over.length?`<div class="tip"><b>지난 일정 중 완료 처리 안 된 것 ${over.length}건</b> 결과를 메모하고 완료로 바꿔 주세요.</div><div class="elist">${over.map(e=>`<div class="erow"><span class="ed">${mdOf(e.date)} (${DOW[dowOf(e.date)]})</span>${evChip(e)}</div>`).join('')}</div>`:''}
-      <div class="elist">${Object.keys(g).map(d=>`<div class="erow"><span class="ed ${d===T?'tdy2':''}">${mdOf(d)} (${DOW[dowOf(d)]})${d===T?' 오늘':''}</span><div class="ecol">${g[d].map(e=>evChip(e)).join('')}</div></div>`).join('')||'<div class="empty">앞으로 60일 동안 잡힌 일정이 없습니다.</div>'}</div>`; }
+      <div class="elist">${Object.keys(g).map(d=>`<div class="erow"><span class="ed ${d===T?'tdy2':''}">${mdOf(d)} (${DOW[dowOf(d)]})${d===T?' 오늘':''}</span><div class="ecol">${g[d].map(e=>evChip(e)).join('')}</div></div>`).join('')||'<div class="empty">앞으로 3달 동안 잡힌 일정이 없습니다.</div>'}</div>`; }
   const whos=whoList();
   return `<div class="row" style="justify-content:space-between"><div><h1>일정</h1><p class="sub">계약·중도금·잔금, 집 보여주기, 고객 미팅을 함께 봅니다. 매물·손님과 연결하면 연락처까지 한 번에 열립니다.</p></div><button class="btn pri" data-act="newEvent" data-date="${SCH.mode==='list'?T:a}">+ 일정 추가</button></div>
   ${S.schedOld?`<div class="tip"><b>일정 저장 준비 필요</b> 구글 Apps Script를 깃허브의 새 코드로 바꾸고 <b>배포 관리 → 새 버전</b>으로 배포해야 일정이 모든 직원에게 저장됩니다. (README 참고)</div>`:''}
   <div class="toolbar" style="margin-top:14px">
-    ${SCH.mode!=='list'?`<button class="btn sm" data-act="schedNav" data-d="-1" aria-label="이전">◀</button><button class="btn sm" data-act="schedNav" data-d="0">오늘</button><button class="btn sm" data-act="schedNav" data-d="1" aria-label="다음">▶</button>`:''}
+    ${SCH.mode==='week'?`<button class="btn sm" data-act="schedNav" data-d="-1" aria-label="이전 주">◀</button><button class="btn sm" data-act="schedNav" data-d="0">이번 주</button><button class="btn sm" data-act="schedNav" data-d="1" aria-label="다음 주">▶</button>`:''}
+    ${SCH.mode==='month'?`<button class="btn sm" data-act="schedPast" data-d="1">◀ 지난 달 보기</button>${SCH.past?'<button class="btn sm ghost" data-act="schedPast" data-d="0">지난 달 숨기기</button>':''}`:''}
     <b style="font-size:17px">${title2}</b>
     <div class="chips seg" style="margin-left:auto">${[['week','주'],['month','월'],['list','목록']].map(([k,t])=>`<button class="chip ${SCH.mode===k?'on':''}" data-act="schedMode" data-m="${k}">${t}</button>`).join('')}</div>
     ${whos.length?`<select id="sch-who" data-act="schedWho" style="width:auto"><option value="">담당자 전체</option>${whos.map(w=>`<option ${SCH.who===w?'selected':''}>${esc(w)}</option>`).join('')}</select>`:''}
   </div>
   <div class="elegend">${ETYPES.map(t=>`<span class="ev-k ${ECLS[t]}">${t}</span>`).join('')}</div>
   ${body}`; }
+function monthGrid(y,m,T){ const first=`${y}-${pad2(m)}-01`; const gs=weekStart(first);
+  const cells=[...Array(42)].map((_,i)=>addDays(gs,i)); const rows=cells[35].slice(5,7)!==pad2(m)?cells.slice(0,35):cells;
+  const rows2=rows.slice(28).every(d=>d.slice(5,7)!==pad2(m))?rows.slice(0,28):rows;
+  return `<h3 class="mtitle">${y}년 ${m}월</h3><div class="month"><div class="mhead">${['월','화','수','목','금','토','일'].map(x=>`<div>${x}</div>`).join('')}</div><div class="mgrid">${rows2.map(d=>{ const ev=evsOn(d); const dw=dowOf(d); const out=d.slice(5,7)!==pad2(m);
+    return `<div class="mcell ${out?'out':''} ${d===T&&!out?'today':''} ${d<T&&!out?'past':''} ${dw===0?'sun':dw===6?'sat':''}">${out?'':`<div class="mday"><button class="linkday" data-act="gotoWeek" data-date="${d}">${+d.slice(8)}</button><button class="addbtn" data-act="newEvent" data-date="${d}" aria-label="${mdOf(d)} 일정 추가">+</button></div>
+      ${ev.slice(0,3).map(e=>evChip(e,true)).join('')}${ev.length>3?`<button class="more" data-act="gotoWeek" data-date="${d}">+${ev.length-3}건 더</button>`:''}`}</div>`; }).join('')}</div></div>`; }
 /* 일정 입력 서랍 */
 function newEventDraft(p){ return {id:null,st:'plan',date:p.date||todayISO(),time:p.time||'',end:'',type:p.type||'고객 미팅',title:'',place:'',lid:p.lid||'',cid:p.cid||'',who:LSX.get('mj_who')||'',note:''}; }
 function openEvent(id){ const e=S.E.find(x=>x.id===id); if(!e) return; DR={type:'E',id,ev:{...e},del:false}; renderDrawer(); }
@@ -1143,7 +1152,8 @@ document.addEventListener('click',async e=>{
   if(a==='newEvent'){ openNewEvent({date:t.dataset.date,lid:t.dataset.lid,cid:t.dataset.cid,type:t.dataset.type}); return; }
   if(a==='openEvent'){ openEvent(t.dataset.id); return; }
   if(a==='evType'){ DR.ev.type=t.dataset.val; renderDrawer(); return; }
-  if(a==='schedMode'){ SCH.mode=t.dataset.m; try{ localStorage.setItem('mj_smode',SCH.mode); }catch(e){} render(); return; }
+  if(a==='schedMode'){ SCH.mode=t.dataset.m; try{ localStorage.setItem('mj_smode2',SCH.mode); }catch(e){} SCH.past=0; render(); return; }
+  if(a==='schedPast'){ SCH.past=+t.dataset.d?SCH.past+1:0; render(); return; }
   if(a==='gotoWeek'){ SCH.mode='week'; SCH.anchor=t.dataset.date; render(); return; }
   if(a==='schedNav'){ const d=+t.dataset.d; if(!d) SCH.anchor=todayISO(); else if(SCH.mode==='month'){ const dt=new Date(SCH.anchor+'T00:00:00'); dt.setDate(1); dt.setMonth(dt.getMonth()+d); SCH.anchor=isoOf(dt); } else SCH.anchor=addDays(SCH.anchor||todayISO(),7*d); render(); return; }
   if(a==='saveEvent'||a==='doneEvent'){ const e={...DR.ev}; if(!e.date){ toast('날짜를 넣어 주세요'); return; } if(a==='doneEvent') e.st='done';
