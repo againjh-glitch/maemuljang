@@ -829,7 +829,7 @@ function parseDeals(s){ const out=[]; const re=/(매매|전세|월세|반전세)
   while((m=re.exec(String(s||'')))){ const t=m[1]==='반전세'?'월세':m[1]; const p=parseMan(m[2]); if(!p) continue; const d={t,p}; if(t==='월세') d.r=+(m[3]||0); out.push(d); } return out; }
 const dealsStr=ds=>(ds||[]).map(d=>`${d.t} ${d.p}${d.t==='월세'?'/'+(d.r||0):''}`).join(' / ');
 const ox=v=>v===true?'O':v===false?'X':'';
-const fromOx=v=>{ v=String(v||'').trim().toUpperCase(); return v==='O'||v==='가능'||v==='있음'?true: v==='X'||v==='불가'||v==='없음'?false: undefined; };
+const fromOx=v=>{ v=String(v||'').trim().toUpperCase(); return v==='O'||v==='0'||v==='○'||v==='가능'||v==='있음'?true: v==='X'||v==='불가'||v==='없음'?false: undefined; };
 function fromRowL(o){ const r={}; LCOLS.forEach(([k,h])=>r[k]=o[h]??'');
   const l={id:String(r.id),st:inv(LST)[r.st]||'active',d:normDate(r.d),d0:normDate(r.d0),cat:r.cat||'기타',deals:parseDeals(r.deals),
     name:r.name,addr:r.addr,area:r.area,rooms:numOr(r.rooms),baths:numOr(r.baths),py:numOr(r.py),year:numOr(r.year),dir:r.dir,
