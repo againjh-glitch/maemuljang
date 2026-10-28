@@ -300,7 +300,7 @@ function cardHTML(x,opt={}){ const l=x.l||x, m=x.s!=null?x:null; const age=ago(l
   const tags=(l.tags||[]).map(t=>`<span class="tag ${t==='급매'?'hot':''}">${esc(t)}</span>`).join('');
   return `<button class="card ${opt.pick?'pick':''}" data-act="open" data-id="${l.id}">
     <div class="ttl">${esc(title(l))}</div>
-    <div class="side">${m?`<span class="score ${m.near?'near':''}">${m.near?'근접':'일치'} ${m.s}</span>`:''}<span class="date ${age>365?'old':''}">${dshort(l.d)} 접수</span></div>
+    <div class="side">${m?`<span class="score ${m.near?'near':''}">${m.near?'근접':'일치'} ${m.s}</span>`:''}<span class="date ${age>365?'old':''}">${dshort(l.d0||l.d)} 등록${l.d0&&l.d&&l.d!==l.d0?' · '+dshort(l.d)+' 확인':''}</span></div>
     <div class="price">${priceHTML(l)}</div>
     <div class="meta">${esc(specs(l))}${l.note?' — '+esc(l.note):''}</div>
     <div class="rs">${stTag}${tags}${m?m.R.map(r=>`<span class="tag ${r[1]}">${esc(r[0])}</span>`).join(''):''}</div>
@@ -337,7 +337,7 @@ function homeFields(scope,q){
 /* ---------- 홈 ---------- */
 function viewHome(){
   const act=S.L.filter(l=>l.st==='active'); const cnt=t=>act.filter(l=>(l.deals||[]).some(d=>d.t===t)).length;
-  const recent=[...act].sort((a,b)=>(b.d||'').localeCompare(a.d||'')).slice(0,6);
+  const recent=[...act].sort(byNewest).slice(0,6);
   const wait=S.C.filter(c=>c.st==='waiting');
   return `${!isShared()?`<div class="tip" style="margin:0 0 16px"><b>공유 연결 전</b> 지금은 이 컴퓨터에만 저장됩니다. 직원들과 같은 매물장을 쓰려면 <a href="#setup">설정</a>에서 비밀번호를 입력하세요.</div>`:''}<h1>어떤 손님이 오셨나요?</h1><p class="sub">고르면 순서대로 안내합니다. 처음 응대하는 직원도 화면의 멘트와 질문을 따라가면 됩니다.</p>
   <div class="doors">
@@ -747,12 +747,15 @@ function listingToF(l){ const f=emptyF(); f.cat=l.cat||''; f.deals=(l.deals&&l.d
   f.tags=(l.tags||[]).slice(); f.note=l.note||''; f.phone=(l.phones||[])[0]||''; f.phone2=(l.phones||[]).slice(1).join(', '); f.show=l.show||''; f.ad=''; f.role=''; return f; }
 
 /* ---------- 매물 검색 ---------- */
-const FIND={q:{...emptyQ(),showAll:false},sort:'match'};
+/* 최근 등록 순: 최초 등록일 → 같은 날이면 나중에 올린 것 먼저 */
+const regDate=l=>l.d0||l.d||'';
+const byNewest=(a,b)=>regDate(b).localeCompare(regDate(a))||String(b.id).localeCompare(String(a.id));
+const FIND={q:{...emptyQ(),showAll:false},sort:(()=>{ try{ return localStorage.getItem('mj_sort')||'date'; }catch(e){ return 'date'; } })()};
 function viewSearch(){ const q=FIND.q;
   let res=runMatch(q);
-  if(FIND.sort==='date') res.sort((a,b)=>(b.l.d||'').localeCompare(a.l.d||''));
+  if(FIND.sort==='date') res.sort((a,b)=>byNewest(a.l,b.l));
   if(FIND.sort==='price') res.sort((a,b)=>((a.l.deals[0]||{}).p||9e9)-((b.l.deals[0]||{}).p||9e9));
-  return `<h1>매물 검색</h1><p class="sub">${S.L.length}건 중 조건에 맞는 매물을 점수 순으로 보여 줍니다. 카드를 누르면 연락처·원문·상태 변경.</p>
+  return `<h1>매물 검색</h1><p class="sub">${S.L.length}건 중 조건에 맞는 매물을 보여 줍니다. 기본은 최근 등록 순이고, 오른쪽에서 일치도 순으로 바꿀 수 있습니다.</p>
   <div class="split"><aside class="panel filters">
     ${dealFields('search',q)}
     <div style="margin-top:12px">${homeFields('search',q)}</div>
@@ -760,7 +763,7 @@ function viewSearch(){ const q=FIND.q;
     <button class="btn sm" data-act="clearFind" style="margin-top:6px">조건 초기화</button>
   </aside>
   <section style="min-width:0"><div class="toolbar"><b id="findCount">${res.length}건</b><span class="sub" style="margin:0">${esc(qSummary(q))}</span>
-    <select id="findSort" data-act="sort" style="width:auto;margin-left:auto"><option value="match" ${FIND.sort==='match'?'selected':''}>일치도 순</option><option value="date" ${FIND.sort==='date'?'selected':''}>최근 접수 순</option><option value="price" ${FIND.sort==='price'?'selected':''}>금액 낮은 순</option></select></div>
+    <select id="findSort" data-act="sort" style="width:auto;margin-left:auto"><option value="date" ${FIND.sort==='date'?'selected':''}>최근 등록 순</option><option value="match" ${FIND.sort==='match'?'selected':''}>일치도 순</option><option value="price" ${FIND.sort==='price'?'selected':''}>금액 낮은 순</option></select></div>
     <div class="results" id="findRes">${res.length?res.slice(0,120).map(x=>cardHTML(x)).join(''):(S.L.length?'<div class="empty">조건에 맞는 매물이 없습니다.</div>':emptyState())}</div>
     ${res.length>120?'<p class="sub">상위 120건까지 표시합니다.</p>':''}
   </section></div>`; }
@@ -946,7 +949,7 @@ document.addEventListener('change',async e=>{ const t=e.target;
   if(t.id==='f-dongho'){ const was=SELL.f.dir; autoDir(SELL.filled&&SELL.filled.has('dir')); if(SELL.f.dir!==was) toast('향을 '+SELL.f.dir+'(으)로 채웠습니다'); render(); return; }
   if(t.dataset.f && t.tagName==='SELECT'){ SELL.f[t.dataset.f]=t.value; if(t.dataset.f==='dir'&&SELL.filled) SELL.filled.delete('dir'); render(); return; }
   if(t.dataset.deal && t.dataset.dk==='t'){ const d=SELL.f.deals[+t.dataset.deal]; d.t=t.value; render(); return; }
-  if(t.dataset.act==='sort'){ FIND.sort=t.value; render(); return; }
+  if(t.dataset.act==='sort'){ FIND.sort=t.value; try{ localStorage.setItem('mj_sort',t.value); }catch(e){} render(); return; }
   if(t.dataset.act==='clientSt'){ await updateRec('clients',t.dataset.id,{st:t.value},'상태를 바꿨습니다'); return; }
   if(t.dataset.act==='lst'){ await updateRec('listings',DR.id,{st:t.value},'매물 상태를 바꿨습니다'); return; }
 });
