@@ -148,6 +148,10 @@ textarea{min-height:76px;resize:vertical}
 .kv dd{margin:0;overflow-wrap:anywhere}
 pre.raw{white-space:pre-wrap;word-break:break-word;background:var(--sunk);padding:12px;border-radius:8px;font-family:var(--f-body);font-size:13px;margin:8px 0 0;max-height:320px;overflow:auto}
 .phone{font-weight:600;user-select:all}
+.linkbtn{font:inherit;font-weight:700;background:none;border:0;padding:0;color:var(--brand);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+details.memo{margin-top:6px;font-size:13px}
+details.memo summary{cursor:pointer;color:var(--brand);font-weight:600}
+details.memo div{white-space:pre-wrap;background:var(--sunk);border-radius:6px;padding:8px 10px;margin-top:6px;color:var(--ink)}
 .lockbox{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;border:1px dashed var(--warn);background:var(--warn-soft);border-radius:10px;padding:12px 14px;margin-top:12px}
 .secret{background:var(--stamp-soft);border-radius:6px;padding:2px 6px;font-weight:600}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;z-index:40;font-size:14px;max-width:90vw}
@@ -774,12 +778,14 @@ function viewClients(){ const list=S.C.filter(c=>CL.filter==='all'||c.st===CL.fi
   return `<div class="row" style="justify-content:space-between"><div><h1>대기 손님</h1><p class="sub">집을 찾고 있는 손님 목록입니다. 새 매물이 들어오면 조건 맞는 손님이 자동으로 표시됩니다.</p></div><a class="btn pri" href="#seek">+ 새 손님 응대</a></div>
   <div class="row" style="margin-top:12px">${[['waiting','대기 중'],['done','계약 완료'],['hold','보류'],['all','전체']].map(([k,t])=>`<button class="chip ${CL.filter===k?'on':''}" data-act="clFilter" data-k="${k}">${t} ${k==='all'?S.C.length:S.C.filter(c=>c.st===k).length}</button>`).join('')}</div>
   <div class="scrollx panel" style="margin-top:12px;padding:6px 10px">${list.length?`<table class="tbl"><thead><tr><th>접수</th><th>손님</th><th>찾는 조건</th><th>맞는 매물</th><th></th></tr></thead><tbody>
-  ${list.map(c=>{ const n=runMatch(clientQ(c)).filter(x=>!x.near).length; return `<tr><td>${dshort(c.d)}${ago(c.d)>365?'<br><span class="date old">1년 넘음</span>':''}</td><td><b>${esc(c.name||'이름 미기재')}</b><br>${phoneOf(c)}</td>
-  <td style="min-width:220px">${esc(qSummary(clientQ(c)))}${c.note?'<br><span class="sub" style="font-size:12px">'+esc(c.note)+'</span>':''}</td>
+  ${list.map(c=>{ const n=runMatch(clientQ(c)).filter(x=>!x.near).length; return `<tr><td>${dshort(c.d)}${ago(c.d)>365?'<br><span class="date old">1년 넘음</span>':''}</td><td><button class="linkbtn" data-act="openClient" data-id="${c.id}">${esc(c.name||'이름 미기재')}</button><br>${phoneOf(c)}</td>
+  <td style="min-width:240px">${esc(qSummary(clientQ(c)))}${c.note?'<br><span class="sub" style="font-size:12px">'+esc(c.note).replace(/\n/g,'<br>')+'</span>':''}${memoOf(c)?`<details class="memo"><summary>상담 메모 보기</summary><div>${esc(memoOf(c))}</div></details>`:''}</td>
   <td><button class="btn sm" data-act="clientSearch" data-id="${c.id}">${n}건 보기</button></td>
   <td><select data-act="clientSt" data-id="${c.id}" id="cst-${c.id}" style="width:auto">${[['waiting','대기 중'],['done','계약 완료'],['hold','보류']].map(([k,t])=>`<option value="${k}" ${c.st===k?'selected':''}>${t}</option>`).join('')}</select></td></tr>`; }).join('')}
   </tbody></table>`:`<div class="empty">${S.live?'해당하는 손님이 없습니다.':'불러오는 중…'}</div>`}</div>`; }
 
+/* 손님 상담 메모: 전화번호를 가린 메모(모두) → 없으면 원문(열람 권한일 때) */
+function memoOf(c){ return c.memo||(canSee()?c.raw||'':''); }
 /* ---------- 민감 정보 잠금 ---------- */
 function phoneOf(c){ if(canSee()) return c.phone?`<span class="phone">${esc(c.phone)}</span>`:''; return (c.locked||[]).includes('연락처')?'<span class="tag unk">🔒 연락처</span>':''; }
 function lockBox(what){ return `<div class="lockbox"><div><b>🔒 ${what}</b><br><span class="sub" style="font-size:13px">열람 비밀번호를 입력한 직원에게만 보입니다.</span></div>
@@ -811,9 +817,14 @@ function renderDrawer(){ if(!DR){ $('#layer').innerHTML=''; return; }
   else { const c=S.C.find(x=>x.id===DR.id); if(!c){closeDrawer();return;} const res=runMatch(clientQ(c)).filter(x=>!x.near);
     h=`<div class="row" style="justify-content:space-between"><span class="lbl">대기 손님 · ${dshort(c.d)} 접수</span><button class="btn ghost sm" data-act="close">닫기 ✕</button></div>
     <h2 style="margin-top:6px">${esc(c.name||'이름 미기재')} ${phoneOf(c)}</h2>${canSee()?'':lockBox('손님 연락처 · 원문')}
-    <dl class="kv"><dt>찾는 조건</dt><dd>${esc(qSummary(clientQ(c)))}</dd>${c.movein?`<dt>이사 시기</dt><dd>${esc(c.movein)}</dd>`:''}${c.people?`<dt>인원</dt><dd>${esc(c.people)}</dd>`:''}${c.note?`<dt>메모</dt><dd>${esc(c.note)}</dd>`:''}</dl>
+    <dl class="kv"><dt>찾는 조건</dt><dd>${esc(qSummary(clientQ(c)))}</dd>${c.movein?`<dt>이사 시기</dt><dd>${esc(c.movein)}</dd>`:''}${c.people?`<dt>인원</dt><dd>${esc(c.people)}</dd>`:''}${c.note?`<dt>메모</dt><dd>${esc(c.note).replace(/\n/g,'<br>')}</dd>`:''}
+    <dt>상태</dt><dd><select data-act="clientSt" data-id="${c.id}" id="dr-cst" style="width:auto">${[['waiting','대기 중'],['done','계약 완료'],['hold','보류']].map(([k,t])=>`<option value="${k}" ${c.st===k?'selected':''}>${t}</option>`).join('')}</select></dd></dl>
+    ${memoOf(c)?`<div class="section" style="margin-top:16px"><h3>상담 메모 (처음 받은 내용)</h3><pre class="raw">${esc(memoOf(c))}</pre></div>`:''}
+    <div class="section" style="margin-top:16px"><h3>메모 추가</h3><p class="sub" style="font-size:13px">통화·방문 내용을 적으면 오늘 날짜와 함께 메모에 쌓입니다.</p>
+      <textarea id="cl-addnote" placeholder="예: 신일 101-504 보여드림, 가격 부담스러워함. 다음 주 재연락" style="margin-top:6px"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn pri sm" data-act="addNote" data-id="${c.id}">메모 추가</button></div></div>
     <div class="section" style="margin-top:16px"><h3>맞는 매물 ${res.length}건</h3><div class="results">${res.slice(0,10).map(x=>cardHTML(x)).join('')||'<div class="empty">지금은 맞는 매물이 없습니다.</div>'}</div></div>
-    ${c.raw&&canSee()?`<div class="section" style="margin-top:20px"><h3>원문</h3><pre class="raw">${esc(c.raw)}</pre></div>`:''}
+    ${c.raw&&canSee()&&c.memo?`<details class="memo" style="margin-top:14px"><summary>원문 (연락처 포함)</summary><pre class="raw">${esc(c.raw)}</pre></details>`:''}
     <div class="row" style="margin-top:20px">${canSee()?`<button class="btn ${DR.del?'red':'ghost'} sm" data-act="delC">${DR.del?'한 번 더 누르면 삭제됩니다':'손님 삭제'}</button>`:''}</div>`; }
   $('#layer').innerHTML=`<div class="scrim" data-act="close"></div><aside class="drawer" role="dialog" aria-modal="true">${h}</aside>`; }
 
@@ -821,7 +832,7 @@ function renderDrawer(){ if(!DR){ $('#layer').innerHTML=''; return; }
    시트 한 줄 = 매물 하나 / 손님 하나. 시트에서 직접 고쳐도 됩니다.
    거래조건 칸 형식: "매매 45000 / 전세 38000 / 월세 3000/60" (단위: 만원) */
 const LCOLS=[['id','ID'],['st','상태'],['d','최근확인일'],['d0','최초접수일'],['cat','종류'],['deals','거래조건'],['name','단지·건물'],['addr','주소'],['area','동네'],['rooms','방'],['baths','화장실'],['py','평수'],['year','연식'],['dir','향'],['elev','엘베'],['park','주차'],['pet','반려동물'],['tags','특징'],['note','메모'],['phones','연락처'],['owner','내놓은분'],['show','집보는법'],['raw','원문'],['src','출처']];
-const CCOLS=[['id','ID'],['st','상태'],['d','접수일'],['name','성함'],['phone','연락처'],['deal','거래'],['budget','예산최대'],['budgetMin','예산최소'],['rentMax','월세최대'],['cats','종류'],['areas','동네'],['rooms','방최소'],['baths','화장실최소'],['py','평수최소'],['kw','키워드'],['need','필수조건'],['people','인원'],['movein','이사시기'],['note','메모'],['shown','보여준매물'],['raw','원문'],['src','출처']];
+const CCOLS=[['id','ID'],['st','상태'],['d','접수일'],['name','성함'],['phone','연락처'],['deal','거래'],['budget','예산최대'],['budgetMin','예산최소'],['rentMax','월세최대'],['cats','종류'],['areas','동네'],['rooms','방최소'],['baths','화장실최소'],['py','평수최소'],['kw','키워드'],['need','필수조건'],['people','인원'],['movein','이사시기'],['note','메모'],['shown','보여준매물'],['raw','원문'],['src','출처'],['memo','상담메모']];
 const LST={active:'진행중',hold:'보류',done:'거래완료'}, CST={waiting:'대기중',done:'계약완료',hold:'보류'};
 const NEEDS=[['elev','엘베'],['park','주차'],['pet','반려동물'],['needIns','보증보험'],['lh','LH']];
 const inv=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[v,k]));
@@ -845,13 +856,13 @@ function toRowL(l){ const r={id:l.id,st:LST[l.st]||'진행중',d:l.d||'',d0:l.d0
   const o={}; LCOLS.forEach(([k,h])=>o[h]=String(r[k]??'')); return o; }
 function fromRowC(o){ const r={}; CCOLS.forEach(([k,h])=>r[k]=o[h]??''); const need=list(r.need);
   const c={id:String(r.id),st:inv(CST)[r.st]||'waiting',d:normDate(r.d),name:r.name,phone:r.phone,deal:r.deal,budget:numOr(parseMan(r.budget)),budgetMin:numOr(parseMan(r.budgetMin)),rentMax:numOr(r.rentMax),
-    cats:list(r.cats),areas:list(r.areas),rooms:numOr(r.rooms),baths:numOr(r.baths),py:numOr(r.py),kw:r.kw,people:r.people,movein:r.movein,note:r.note,shown:list(r.shown),raw:r.raw,src:r.src};
+    cats:list(r.cats),areas:list(r.areas),rooms:numOr(r.rooms),baths:numOr(r.baths),py:numOr(r.py),kw:r.kw,people:r.people,movein:r.movein,note:r.note,shown:list(r.shown),raw:r.raw,src:r.src,memo:r.memo};
   NEEDS.forEach(([k,t])=>{ if(need.includes(t)) c[k]=true; }); if(o._locked) c.locked=list(o._locked);
   Object.keys(c).forEach(k=>{ if(c[k]===undefined||c[k]==='') delete c[k]; }); return c; }
 function toRowC(c){ const need=NEEDS.filter(([k])=>c[k]||(k==='park'&&(c.tags||[]).includes('주차필수'))||(k==='needIns'&&(c.tags||[]).includes('보증보험필요'))||(k==='lh'&&(c.tags||[]).includes('LH'))).map(x=>x[1]);
   const r={id:c.id,st:CST[c.st]||'대기중',d:c.d||'',name:c.name||'',phone:c.phone||'',deal:c.deal||'',budget:c.budget??'',budgetMin:c.budgetMin??'',rentMax:c.rentMax??'',
     cats:(c.cats||(c.cat?[c.cat]:[])).join(', '),areas:(c.areas||[]).join(', '),rooms:c.rooms||'',baths:c.baths||'',py:c.py||'',kw:c.kw||'',need:need.join(', '),
-    people:c.people||'',movein:c.movein||'',note:c.note||'',shown:(c.shown||[]).join(', '),raw:c.raw||'',src:c.src||''};
+    people:c.people||'',movein:c.movein||'',note:c.note||'',shown:(c.shown||[]).join(', '),raw:c.raw||'',src:c.src||'',memo:c.memo||''};
   const o={}; CCOLS.forEach(([k,h])=>o[h]=String(r[k]??'')); return o; }
 
 /* 설정: index.html 맨 아래 CONFIG.API_URL 에 주소를 넣어 두면 직원들은 비밀번호만 입력하면 됩니다 */
@@ -979,6 +990,9 @@ document.addEventListener('click',async e=>{
   if(a==='unlock'){ const ok=await unlock($('#unlock-pw').value.trim(),$('#unlock-rem')?.checked); if(ok){ renderDrawer(); render(); } return; }
   if(a==='lockNow'){ lockAll('열람을 잠갔습니다'); renderDrawer(); render(); return; }
   if(a==='logout'){ LSX.set('mj_key',null); SSX.set('mj_full',null); LSX.set('mj_full',null); S.level=0; toast('이 컴퓨터에서 비밀번호를 모두 지웠습니다'); loadAll(); render(); return; }
+  if(a==='addNote'){ const id=t.dataset.id; const txt=($('#cl-addnote')?.value||'').trim(); if(!txt){ toast('추가할 메모를 적어 주세요'); return; }
+    const c=S.C.find(x=>x.id===id); if(!c) return; const line=`[${dshort(todayISO())}] ${txt}`;
+    if(await updateRec('clients',id,{note:(c.note?c.note+'\n':'')+line},'메모를 추가했습니다')) renderDrawer(); return; }
   if(a==='parsePaste'){ const txt=($('#f-paste')?.value||'').trim(); SELL.paste=txt; if(!txt){ toast('붙여넣을 내용을 먼저 넣어 주세요'); return; }
     const p=parseTemplate(txt); const n=applyParsed(p); SELL.pasteMsg=n?`${n}개 칸을 채웠습니다${p.cx?' · '+p.cx.name+' 단지 정보 자동 입력':''}. 노란 '자동' 표시를 확인하세요.`:'알아볼 수 있는 내용이 없습니다. 직접 입력해 주세요.'; render(); return; }
   if(a==='pickType'){ const c=findComplex(SELL.f.name); const tp=c&&c.types[+t.dataset.i]; if(tp){ applyType(tp,SELL.f,true); render(); } return; }
