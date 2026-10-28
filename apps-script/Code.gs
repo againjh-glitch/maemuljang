@@ -17,6 +17,11 @@
 const PASSWORD = '여기에-사무실-비밀번호';
 const FULL_PASSWORD = '여기에-열람-비밀번호';
 
+/** 처음 한 번: 위쪽 함수 선택 칸에서 '처음실행'을 고르고 ▶ 실행 → 권한 허용 */
+function 처음실행() {
+  Logger.log('연결 확인: ' + SpreadsheetApp.getActive().getName() + ' / 매물 ' + (SpreadsheetApp.getActive().getSheetByName('매물').getLastRow() - 1) + '건');
+}
+
 const SHEETS = { listings: '매물', clients: '손님' };
 // 열람 비밀번호가 있어야 보이는 칸
 const SECRET = {
