@@ -88,7 +88,7 @@ h3{font-size:15px}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .field > span{font-size:13px;font-weight:600;color:var(--muted)}
 .field small{color:var(--muted);font-size:12px}
-input[type=text],input[type=tel],input[type=number],input[type=search],select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;min-width:0}
+input[type=text],input[type=tel],input[type=number],input[type=search],input[type=password],select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;min-width:0}
 textarea{min-height:76px;resize:vertical}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{font:inherit;font-size:14px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
@@ -148,6 +148,8 @@ textarea{min-height:76px;resize:vertical}
 .kv dd{margin:0;overflow-wrap:anywhere}
 pre.raw{white-space:pre-wrap;word-break:break-word;background:var(--sunk);padding:12px;border-radius:8px;font-family:var(--f-body);font-size:13px;margin:8px 0 0;max-height:320px;overflow:auto}
 .phone{font-weight:600;user-select:all}
+.lockbox{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;border:1px dashed var(--warn);background:var(--warn-soft);border-radius:10px;padding:12px 14px;margin-top:12px}
+.secret{background:var(--stamp-soft);border-radius:6px;padding:2px 6px;font-weight:600}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;z-index:40;font-size:14px;max-width:90vw}
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl th,.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
@@ -420,6 +422,7 @@ function sellStep(i){ const f=SELL.f;
       <label class="field"><span>통신사</span>${sel('f-carrier','carrier',['SKT','KT','LG U+','알뜰폰'],f.carrier)}</label>
       <label class="field"><span>추가 연락처 (세입자 등)</span>${inp('f-phone2','phone2',f.phone2,'집 보여줄 사람 번호','tel')}</label>
     </div>
+    ${SELL.editId&&!canSee()?'<div class="tip"><b>🔒 연락처 수정 불가</b> 기존 매물의 연락처·현관 비밀번호는 열람 비밀번호를 입력해야 보이고 고칠 수 있습니다. 여기 비워 두면 기존 값이 그대로 유지됩니다.</div>':''}
     <div class="tip"><b>확인 포인트</b> 소유자가 아니면 소유자 성함·연락처도 받고, 대리인은 계약할 때 <b>위임장·인감증명서</b>가 필요하다고 안내하세요. 모르는 번호를 안 받는 분은 "문자 먼저"라고 메모합니다.</div>`;
   if(i===1) return `<h2>2. 매물 기본 정보</h2>
     <div class="say"><div class="lbl">이렇게 말하세요</div><p>"주소랑 동·호수 알려 주시겠어요? 매매로 내놓으세요, 전세나 월세로 내놓으세요? 생각하시는 금액은 얼마세요?"</p></div>
@@ -459,7 +462,7 @@ function sellStep(i){ const f=SELL.f;
     <div class="fgrid">
       <label class="field"><span>입주 가능일</span>${inp('f-movein','movein',f.movein,'예: 즉시, 12월 중순 협의')}</label>
       <label class="field"><span>현재 거주</span>${sel('f-tenant','tenant',['공실','소유자 거주','세입자 거주'],f.tenant)}</label>
-      <label class="field full"><span>집 보는 방법 · 비밀번호</span>${inp('f-show','show',f.show,'예: 평일 6시 이후, 방문 전 세입자에게 문자 / 현관 #1234#')}<small>비밀번호는 사내용입니다. 손님에게 그대로 알려주지 마세요.</small></label>
+      <label class="field full"><span>집 보는 방법 · 현관 비밀번호 🔒</span>${inp('f-show','show',f.show,'예: 현관 #1234# / 평일 6시 이후, 방문 전 세입자에게 문자')}<small>현관 비밀번호는 꼭 이 칸에 적으세요. 열람 비밀번호를 입력한 직원에게만 보입니다.</small></label>
       <label class="field"><span>근저당 · 융자</span>${sel('f-loan','loan',['없음','있음','신탁','모름'],f.loan)}</label>
       <label class="field"><span>전세대출 · 보증보험</span>${sel('f-ins','ins',['가능','불가','확인 필요'],f.ins)}</label>
       <label class="field"><span>네이버 광고</span>${sel('f-ad','ad',['광고 가능','광고 안 함'],f.ad)}</label>
@@ -483,7 +486,7 @@ function viewSell(){
   const doc=buildListing(); const cl=doc.deals.length?clientsFor({...doc,st:'active',d:todayISO()}):[];
   const side=`<aside class="panel live"><div class="lbl">이 매물을 찾던 대기 손님</div><div class="count">${cl.length}<small> 명</small></div>
     <p class="sub" style="font-size:13px">거래 종류·금액·방 수를 입력하면 기다리던 손님이 바로 나옵니다.</p>
-    <div class="mini">${cl.slice(0,5).map(x=>`<div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${esc(x.c.phone||'')}</b>${esc(qSummary(clientQ(x.c)))}</div>`).join('')}</div></aside>`;
+    <div class="mini">${cl.slice(0,5).map(x=>`<div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${phoneOf(x.c)}</b>${esc(qSummary(clientQ(x.c)))}</div>`).join('')}</div></aside>`;
   return `<div class="row" style="justify-content:space-between"><div><h1>${SELL.editId?'매물 수정':'집 내놓는 손님'}</h1><p class="sub">우리 매물장 양식(1~8번) 순서 그대로 물어봅니다.</p></div><button class="btn ghost sm" data-act="resetSell">${SELL.editId?'수정 취소':'처음부터'}</button></div>${steps}
   <div class="wiz"><section class="panel">${sellStep(st)}
     <div class="navbar"><button class="btn" data-sellstep="${st-1}" ${st===0?'disabled':''}>← 이전</button>${st<4?`<button class="btn pri" data-sellstep="${st+1}">다음: ${SELL_STEPS[st+1]} →</button>`:''}</div></section>${side}</div>`;
@@ -521,7 +524,7 @@ function savedView(){ const l=S.L.find(x=>x.id===SELL.saved)||SELL.savedDoc; con
   return `<h1>저장했습니다</h1><p class="sub">매물장에 올라갔고, 모든 직원 화면에 바로 보입니다.</p>
   <div class="results">${l?cardHTML(l):''}</div>
   <div class="section"><h2>이 매물을 기다리던 손님 ${cl.length}명</h2><p class="sub">${cl.length?'지금 바로 연락해서 소개하세요.':'아직 조건이 맞는 대기 손님이 없습니다.'}</p>
-  ${cl.length?`<div class="scrollx panel" style="padding:6px 10px;margin-top:10px"><table class="tbl"><thead><tr><th>손님</th><th>연락처</th><th>찾는 조건</th><th>접수일</th></tr></thead><tbody>${cl.map(x=>`<tr><td>${esc(x.c.name||'-')}</td><td class="phone">${esc(x.c.phone||'-')}</td><td>${esc(qSummary(clientQ(x.c)))}${x.c.note?'<br><span class="sub" style="font-size:12px">'+esc(x.c.note)+'</span>':''}</td><td>${dshort(x.c.d)}</td></tr>`).join('')}</tbody></table></div>`:''}</div>
+  ${cl.length?`<div class="scrollx panel" style="padding:6px 10px;margin-top:10px"><table class="tbl"><thead><tr><th>손님</th><th>연락처</th><th>찾는 조건</th><th>접수일</th></tr></thead><tbody>${cl.map(x=>`<tr><td>${esc(x.c.name||'-')}</td><td>${phoneOf(x.c)||'-'}</td><td>${esc(qSummary(clientQ(x.c)))}${x.c.note?'<br><span class="sub" style="font-size:12px">'+esc(x.c.note)+'</span>':''}</td><td>${dshort(x.c.d)}</td></tr>`).join('')}</tbody></table></div>`:''}</div>
   <div class="row" style="margin-top:18px"><button class="btn red" data-act="resetSell">다음 매물 접수</button><a class="btn" href="#home">처음 화면</a></div>`; }
 function listingToF(l){ const f=emptyF(); f.cat=l.cat||''; f.deals=(l.deals&&l.deals.length?l.deals:[{t:'매매',p:''}]).map(d=>({t:d.t,p:d.p!=null?String(d.p):'',r:d.r!=null?String(d.r):''}));
   ['name','addr','area','dir'].forEach(k=>f[k]=l[k]||''); ['year','py','rooms','baths'].forEach(k=>f[k]=l[k]!=null?String(l[k]):'');
@@ -553,11 +556,17 @@ function viewClients(){ const list=S.C.filter(c=>CL.filter==='all'||c.st===CL.fi
   return `<div class="row" style="justify-content:space-between"><div><h1>대기 손님</h1><p class="sub">집을 찾고 있는 손님 목록입니다. 새 매물이 들어오면 조건 맞는 손님이 자동으로 표시됩니다.</p></div><a class="btn pri" href="#seek">+ 새 손님 응대</a></div>
   <div class="row" style="margin-top:12px">${[['waiting','대기 중'],['done','계약 완료'],['hold','보류'],['all','전체']].map(([k,t])=>`<button class="chip ${CL.filter===k?'on':''}" data-act="clFilter" data-k="${k}">${t} ${k==='all'?S.C.length:S.C.filter(c=>c.st===k).length}</button>`).join('')}</div>
   <div class="scrollx panel" style="margin-top:12px;padding:6px 10px">${list.length?`<table class="tbl"><thead><tr><th>접수</th><th>손님</th><th>찾는 조건</th><th>맞는 매물</th><th></th></tr></thead><tbody>
-  ${list.map(c=>{ const n=runMatch(clientQ(c)).filter(x=>!x.near).length; return `<tr><td>${dshort(c.d)}${ago(c.d)>365?'<br><span class="date old">1년 넘음</span>':''}</td><td><b>${esc(c.name||'이름 미기재')}</b><br><span class="phone">${esc(c.phone||'')}</span></td>
+  ${list.map(c=>{ const n=runMatch(clientQ(c)).filter(x=>!x.near).length; return `<tr><td>${dshort(c.d)}${ago(c.d)>365?'<br><span class="date old">1년 넘음</span>':''}</td><td><b>${esc(c.name||'이름 미기재')}</b><br>${phoneOf(c)}</td>
   <td style="min-width:220px">${esc(qSummary(clientQ(c)))}${c.note?'<br><span class="sub" style="font-size:12px">'+esc(c.note)+'</span>':''}</td>
   <td><button class="btn sm" data-act="clientSearch" data-id="${c.id}">${n}건 보기</button></td>
   <td><select data-act="clientSt" data-id="${c.id}" id="cst-${c.id}" style="width:auto">${[['waiting','대기 중'],['done','계약 완료'],['hold','보류']].map(([k,t])=>`<option value="${k}" ${c.st===k?'selected':''}>${t}</option>`).join('')}</select></td></tr>`; }).join('')}
   </tbody></table>`:`<div class="empty">${S.live?'해당하는 손님이 없습니다.':'불러오는 중…'}</div>`}</div>`; }
+
+/* ---------- 민감 정보 잠금 ---------- */
+function phoneOf(c){ if(canSee()) return c.phone?`<span class="phone">${esc(c.phone)}</span>`:''; return (c.locked||[]).includes('연락처')?'<span class="tag unk">🔒 연락처</span>':''; }
+function lockBox(what){ return `<div class="lockbox"><div><b>🔒 ${what}</b><br><span class="sub" style="font-size:13px">열람 비밀번호를 입력한 직원에게만 보입니다.</span></div>
+  <div class="row"><input type="password" id="unlock-pw" placeholder="열람 비밀번호" autocomplete="off" style="max-width:200px"><button class="btn pri sm" data-act="unlock">열기</button>
+  <label style="font-size:13px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="unlock-rem"> 이 컴퓨터에서 기억</label></div></div>`; }
 
 /* ---------- 상세 서랍 ---------- */
 let DR=null;
@@ -570,22 +579,23 @@ function renderDrawer(){ if(!DR){ $('#layer').innerHTML=''; return; }
     h=`<div class="row" style="justify-content:space-between"><span class="lbl">${esc(l.cat)} · ${dshort(l.d)} 접수${l.d0&&l.d0!==l.d?' (최초 '+dshort(l.d0)+')':''}</span><button class="btn ghost sm" data-act="close">닫기 ✕</button></div>
     <h2 style="margin-top:6px">${esc(title(l))}</h2><div class="price" style="margin-top:8px">${priceHTML(l)}</div>
     ${ago(l.d)>365?'<div class="tip"><b>1년 넘은 매물</b> 보여주기 전 집주인에게 아직 나와 있는지, 가격이 같은지 먼저 확인하세요.</div>':''}
-    <dl class="kv"><dt>연락처</dt><dd>${(l.phones||[]).map(p=>`<span class="phone">${esc(p)}</span>`).join('<br>')||'원문 확인'}</dd>
-    ${l.owner?`<dt>내놓은 분</dt><dd>${esc(l.owner)}</dd>`:''}
-    <dt>구조</dt><dd>${esc(specs(l))}</dd>${l.note?`<dt>메모</dt><dd>${esc(l.note)}</dd>`:''}${l.show?`<dt>집 보는 법</dt><dd>${esc(l.show)}</dd>`:''}
+    ${canSee()?'':lockBox('연락처 · 현관 비밀번호 · 원문')}
+    <dl class="kv">${canSee()?`<dt>연락처</dt><dd>${(l.phones||[]).map(p=>`<span class="phone">${esc(p)}</span>`).join('<br>')||'원문 확인'}</dd>
+    ${l.owner?`<dt>내놓은 분</dt><dd>${esc(l.owner)}</dd>`:''}${l.show?`<dt>집 보는 법</dt><dd class="secret">${esc(l.show)}</dd>`:''}`:''}
+    <dt>구조</dt><dd>${esc(specs(l))}</dd>${l.note?`<dt>메모</dt><dd>${esc(l.note)}</dd>`:''}
     ${(l.tags||[]).length?`<dt>특징</dt><dd>${l.tags.map(t=>`<span class="tag ${t==='급매'?'hot':''}">${esc(t)}</span>`).join(' ')}</dd>`:''}
     <dt>상태</dt><dd><select id="dr-st" data-act="lst" style="width:auto">${[['active','진행 중'],['hold','보류'],['done','거래 완료']].map(([k,t])=>`<option value="${k}" ${l.st===k?'selected':''}>${t}</option>`).join('')}</select></dd></dl>
     <div class="row" style="margin-top:14px"><button class="btn ${picked?'':'pri'}" data-act="pick">${picked?'보여줄 집에서 빼기':'보여줄 집에 담기'}</button><button class="btn" data-act="edit">수정</button><button class="btn" data-act="touch">오늘 확인함</button></div>
-    <div class="section" style="margin-top:20px"><h3>이 매물 찾는 대기 손님 ${cl.length}명</h3>${cl.slice(0,8).map(x=>`<div class="mini"><div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} <span class="phone">${esc(x.c.phone||'')}</span></b>${esc(qSummary(clientQ(x.c)))}</div></div>`).join('')}</div>
-    ${l.raw?`<div class="section" style="margin-top:20px"><h3>매물장 원문</h3><pre class="raw">${esc(l.raw)}</pre></div>`:''}
-    <div class="row" style="margin-top:20px"><button class="btn ${DR.del?'red':'ghost'} sm" data-act="delL">${DR.del?'한 번 더 누르면 삭제됩니다':'매물 삭제'}</button></div>`; }
+    <div class="section" style="margin-top:20px"><h3>이 매물 찾는 대기 손님 ${cl.length}명</h3>${cl.slice(0,8).map(x=>`<div class="mini"><div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${phoneOf(x.c)}</b>${esc(qSummary(clientQ(x.c)))}</div></div>`).join('')}</div>
+    ${l.raw&&canSee()?`<div class="section" style="margin-top:20px"><h3>매물장 원문</h3><pre class="raw">${esc(l.raw)}</pre></div>`:''}
+    <div class="row" style="margin-top:20px">${canSee()?`<button class="btn ${DR.del?'red':'ghost'} sm" data-act="delL">${DR.del?'한 번 더 누르면 삭제됩니다':'매물 삭제'}</button>`:''}${isShared()&&S.level>=2?'<button class="btn ghost sm" data-act="lockNow">열람 잠그기</button>':''}</div>`; }
   else { const c=S.C.find(x=>x.id===DR.id); if(!c){closeDrawer();return;} const res=runMatch(clientQ(c)).filter(x=>!x.near);
     h=`<div class="row" style="justify-content:space-between"><span class="lbl">대기 손님 · ${dshort(c.d)} 접수</span><button class="btn ghost sm" data-act="close">닫기 ✕</button></div>
-    <h2 style="margin-top:6px">${esc(c.name||'이름 미기재')} <span class="phone">${esc(c.phone||'')}</span></h2>
+    <h2 style="margin-top:6px">${esc(c.name||'이름 미기재')} ${phoneOf(c)}</h2>${canSee()?'':lockBox('손님 연락처 · 원문')}
     <dl class="kv"><dt>찾는 조건</dt><dd>${esc(qSummary(clientQ(c)))}</dd>${c.movein?`<dt>이사 시기</dt><dd>${esc(c.movein)}</dd>`:''}${c.people?`<dt>인원</dt><dd>${esc(c.people)}</dd>`:''}${c.note?`<dt>메모</dt><dd>${esc(c.note)}</dd>`:''}</dl>
     <div class="section" style="margin-top:16px"><h3>맞는 매물 ${res.length}건</h3><div class="results">${res.slice(0,10).map(x=>cardHTML(x)).join('')||'<div class="empty">지금은 맞는 매물이 없습니다.</div>'}</div></div>
-    ${c.raw?`<div class="section" style="margin-top:20px"><h3>원문</h3><pre class="raw">${esc(c.raw)}</pre></div>`:''}
-    <div class="row" style="margin-top:20px"><button class="btn ${DR.del?'red':'ghost'} sm" data-act="delC">${DR.del?'한 번 더 누르면 삭제됩니다':'손님 삭제'}</button></div>`; }
+    ${c.raw&&canSee()?`<div class="section" style="margin-top:20px"><h3>원문</h3><pre class="raw">${esc(c.raw)}</pre></div>`:''}
+    <div class="row" style="margin-top:20px">${canSee()?`<button class="btn ${DR.del?'red':'ghost'} sm" data-act="delC">${DR.del?'한 번 더 누르면 삭제됩니다':'손님 삭제'}</button>`:''}</div>`; }
   $('#layer').innerHTML=`<div class="scrim" data-act="close"></div><aside class="drawer" role="dialog" aria-modal="true">${h}</aside>`; }
 
 /* ---------- 저장소: 구글 시트 (Apps Script 웹앱) ----------
@@ -608,6 +618,7 @@ function fromRowL(o){ const r={}; LCOLS.forEach(([k,h])=>r[k]=o[h]??'');
   const l={id:String(r.id),st:inv(LST)[r.st]||'active',d:normDate(r.d),d0:normDate(r.d0),cat:r.cat||'기타',deals:parseDeals(r.deals),
     name:r.name,addr:r.addr,area:r.area,rooms:numOr(r.rooms),baths:numOr(r.baths),py:numOr(r.py),year:numOr(r.year),dir:r.dir,
     elev:fromOx(r.elev),park:fromOx(r.park),pet:fromOx(r.pet),tags:list(r.tags),note:r.note,phones:list(r.phones),owner:r.owner,show:r.show,raw:r.raw,src:r.src};
+  if(o._locked) l.locked=list(o._locked);
   Object.keys(l).forEach(k=>{ if(l[k]===undefined||l[k]==='') delete l[k]; }); if(!l.tags) l.tags=[]; return l; }
 function toRowL(l){ const r={id:l.id,st:LST[l.st]||'진행중',d:l.d||'',d0:l.d0||'',cat:l.cat||'',deals:dealsStr(l.deals),name:l.name||'',addr:l.addr||'',area:l.area||'',
     rooms:l.rooms??'',baths:l.baths??'',py:l.py??'',year:l.year??'',dir:l.dir||'',elev:ox(l.elev),park:ox(l.park),pet:ox(l.pet),tags:(l.tags||[]).join(', '),
@@ -616,7 +627,7 @@ function toRowL(l){ const r={id:l.id,st:LST[l.st]||'진행중',d:l.d||'',d0:l.d0
 function fromRowC(o){ const r={}; CCOLS.forEach(([k,h])=>r[k]=o[h]??''); const need=list(r.need);
   const c={id:String(r.id),st:inv(CST)[r.st]||'waiting',d:normDate(r.d),name:r.name,phone:r.phone,deal:r.deal,budget:numOr(parseMan(r.budget)),budgetMin:numOr(parseMan(r.budgetMin)),rentMax:numOr(r.rentMax),
     cats:list(r.cats),areas:list(r.areas),rooms:numOr(r.rooms),baths:numOr(r.baths),py:numOr(r.py),kw:r.kw,people:r.people,movein:r.movein,note:r.note,shown:list(r.shown),raw:r.raw,src:r.src};
-  NEEDS.forEach(([k,t])=>{ if(need.includes(t)) c[k]=true; });
+  NEEDS.forEach(([k,t])=>{ if(need.includes(t)) c[k]=true; }); if(o._locked) c.locked=list(o._locked);
   Object.keys(c).forEach(k=>{ if(c[k]===undefined||c[k]==='') delete c[k]; }); return c; }
 function toRowC(c){ const need=NEEDS.filter(([k])=>c[k]||(k==='park'&&(c.tags||[]).includes('주차필수'))||(k==='needIns'&&(c.tags||[]).includes('보증보험필요'))||(k==='lh'&&(c.tags||[]).includes('LH'))).map(x=>x[1]);
   const r={id:c.id,st:CST[c.st]||'대기중',d:c.d||'',name:c.name||'',phone:c.phone||'',deal:c.deal||'',budget:c.budget??'',budgetMin:c.budgetMin??'',rentMax:c.rentMax??'',
@@ -627,8 +638,23 @@ function toRowC(c){ const need=NEEDS.filter(([k])=>c[k]||(k==='park'&&(c.tags||[
 /* 설정: index.html 맨 아래 CONFIG.API_URL 에 주소를 넣어 두면 직원들은 비밀번호만 입력하면 됩니다 */
 const LSX={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
 const apiUrl=()=>LSX.get('mj_api')||CONFIG.API_URL||'';
-const apiKey=()=>LSX.get('mj_key')||'';
+/* 비밀번호 두 단계: 사무실(mj_key, 이 브라우저에 기억) / 열람(mj_full, 기본은 브라우저를 닫거나 30분 쉬면 잠김) */
+const SSX={get(k){try{return sessionStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?sessionStorage.removeItem(k):sessionStorage.setItem(k,v)}catch(e){}}};
+const fullKey=()=>SSX.get('mj_full')||LSX.get('mj_full')||'';
+const apiKey=()=>fullKey()||LSX.get('mj_key')||'';
 const isShared=()=>!!(apiUrl()&&apiKey());
+const SECRET_H={listings:['연락처','내놓은분','집보는법','원문'],clients:['연락처','원문']};
+S.level=0;
+const canSee=()=>!isShared()||S.level>=2;
+function lockAll(msg){ SSX.set('mj_full',null); LSX.set('mj_full',null); S.level=Math.min(S.level,1); if(msg) toast(msg); loadAll(true); }
+let lastAct=Date.now(); ['click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ lastAct=Date.now(); },true));
+setInterval(()=>{ if(fullKey() && !LSX.get('mj_full') && Date.now()-lastAct>30*60000) lockAll('30분 동안 사용이 없어 열람을 잠갔습니다'); },60000);
+async function unlock(pw,remember){ if(!pw){ toast('열람 비밀번호를 입력하세요'); return false; }
+  try{ const r=await fetch(apiUrl()+'?action=list&key='+encodeURIComponent(pw)+'&t='+Date.now()); const j=await r.json();
+    if(!j.ok||j.level<2){ toast('열람 비밀번호가 맞지 않습니다'); return false; }
+    if(remember) LSX.set('mj_full',pw); else SSX.set('mj_full',pw);
+    toast('연락처·현관 비밀번호를 볼 수 있습니다'); await loadAll(true); return true; }
+  catch(e){ toast('연결하지 못했습니다'); return false; } }
 function setSync(txt,live){ $('#syncTxt').textContent=txt; $('#dot').classList.toggle('live',!!live); }
 async function apiGet(){ const r=await fetch(apiUrl()+'?action=list&key='+encodeURIComponent(apiKey())+'&t='+Date.now()); const j=await r.json(); if(!j.ok) throw new Error(j.error||'fail'); return j; }
 async function apiPost(body){ const r=await fetch(apiUrl(),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:apiKey(),...body})}); const j=await r.json(); if(!j.ok) throw new Error(j.error||'fail'); return j; }
@@ -639,36 +665,41 @@ async function loadAll(quiet){
   if(!isShared()){ localLoad(); S.live=true; setSync('이 컴퓨터에만 저장 중 · 설정 필요',false); refresh(); return; }
   if(pending) return;
   try{ if(!quiet) setSync('불러오는 중',false); const j=await apiGet(); if(pending) return;
-    S.L=(j.listings||[]).map(fromRowL).filter(l=>l.id); S.C=(j.clients||[]).map(fromRowC).filter(c=>c.id);
-    S.live=true; setSync('공유 매물장 연결됨 · '+new Date().toTimeString().slice(0,5),true); refresh(); }
+    S.L=(j.listings||[]).map(fromRowL).filter(l=>l.id); S.C=(j.clients||[]).map(fromRowC).filter(c=>c.id); S.level=j.level||1;
+    if(fullKey()&&S.level<2){ SSX.set('mj_full',null); LSX.set('mj_full',null); }
+    S.live=true; setSync((S.level>=2?'전체 열람 중':'공유 매물장 연결됨')+' · '+new Date().toTimeString().slice(0,5),true); refresh(); }
   catch(e){ S.live=true; setSync(String(e.message)==='password'?'비밀번호가 맞지 않습니다':'연결 실패 · 설정 확인',false); refresh(); }
 }
-async function putRec(kind,rec,okMsg){ const arr=kind==='listings'?S.L:S.C; const i=arr.findIndex(x=>x.id===rec.id); if(i>=0) arr[i]=rec; else arr.push(rec); refresh();
+async function putRec(kind,rec,okMsg){ const arr=kind==='listings'?S.L:S.C; const i=arr.findIndex(x=>x.id===rec.id); const exists=i>=0; if(exists) arr[i]=rec; else arr.push(rec); refresh();
   if(!isShared()){ localSave(); if(okMsg) toast(okMsg+' (이 컴퓨터에만)'); return true; }
-  pending++; try{ await apiPost({action:'upsert',sheet:kind,id:rec.id,rec:kind==='listings'?toRowL(rec):toRowC(rec)}); if(okMsg) toast(okMsg); return true; }
+  const row=kind==='listings'?toRowL(rec):toRowC(rec); if(exists&&!canSee()) SECRET_H[kind].forEach(h=>delete row[h]);
+  pending++; try{ await apiPost({action:'upsert',sheet:kind,id:rec.id,rec:row}); if(okMsg) toast(okMsg); return true; }
   catch(e){ toast('저장하지 못했습니다. 인터넷 연결과 설정을 확인하고 다시 눌러 주세요.'); return false; }
   finally{ pending--; if(!pending) loadAll(true); } }
 async function updateRec(kind,id,patch,okMsg){ const arr=kind==='listings'?S.L:S.C; const cur=arr.find(x=>x.id===id); if(!cur) return false; return putRec(kind,{...cur,...patch},okMsg); }
 async function removeRec(kind,id,okMsg){ if(kind==='listings') S.L=S.L.filter(x=>x.id!==id); else S.C=S.C.filter(x=>x.id!==id); refresh();
   if(!isShared()){ localSave(); toast(okMsg); return true; }
   pending++; try{ await apiPost({action:'delete',sheet:kind,id}); toast(okMsg); return true; }
-  catch(e){ toast('삭제하지 못했습니다. 다시 눌러 주세요.'); return false; } finally{ pending--; if(!pending) loadAll(true); } }
+  catch(e){ toast(String(e.message)==='level'?'삭제는 열람 비밀번호를 입력한 직원만 할 수 있습니다.':'삭제하지 못했습니다. 다시 눌러 주세요.'); return false; } finally{ pending--; if(!pending) loadAll(true); } }
 setInterval(()=>{ if(isShared()&&document.visibilityState==='visible') loadAll(true); },60000);
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&isShared()) loadAll(true); });
 
 /* ---------- 설정 화면 ---------- */
-function viewSetup(){ const u=apiUrl(), fixed=!!CONFIG.API_URL;
-  return `<h1>공유 설정</h1><p class="sub">모든 직원이 같은 매물장을 보려면 구글 시트에 연결합니다. 처음 한 번만 하면 됩니다.</p>
-  <section class="panel" style="margin-top:16px;max-width:720px">
+function viewSetup(){ const u=apiUrl(), fixed=!!CONFIG.API_URL; const lvTxt=!isShared()?'연결 전 (이 컴퓨터에만 저장)':S.level>=2?'전체 열람 (연락처·현관 비밀번호 보임)':S.level===1?'기본 (연락처·현관 비밀번호 가림)':'확인 중';
+  return `<h1>공유 설정</h1><p class="sub">모든 직원이 같은 매물장을 보려면 사무실 비밀번호를 입력합니다. 처음 한 번만 하면 됩니다.</p>
+  <section class="panel" style="margin-top:16px;max-width:720px"><div class="lbl">현재 권한</div><h2 style="margin-top:4px">${lvTxt}</h2>
+    <p class="sub" style="font-size:13px">${esc($('#syncTxt').textContent)}</p></section>
+  <section class="panel" style="max-width:720px"><h3>1단계 · 사무실 비밀번호</h3><p class="sub" style="font-size:13px">매물 보기·검색·손님 응대·새 매물 접수. 이 컴퓨터에 기억됩니다.</p>
     <div class="fgrid">
-      <label class="field full"><span>구글 Apps Script 웹앱 주소</span><input type="text" id="set-api" value="${esc(LSX.get('mj_api')||'')}" placeholder="${fixed?'관리자가 지정한 주소 사용 중':'https://script.google.com/macros/s/…/exec'}"><small>${fixed?'이미 지정되어 있습니다. 바꿀 때만 입력하세요.':'관리자에게 받은 주소를 붙여 넣으세요.'}</small></label>
-      <label class="field full"><span>사무실 비밀번호</span><input type="text" id="set-key" value="${esc(apiKey())}" placeholder="관리자에게 받은 비밀번호" autocomplete="off"></label>
+      ${fixed?'':`<label class="field full"><span>구글 Apps Script 웹앱 주소</span><input type="text" id="set-api" value="${esc(LSX.get('mj_api')||'')}" placeholder="https://script.google.com/macros/s/…/exec"><small>관리자에게 받은 주소를 붙여 넣으세요.</small></label>`}
+      <label class="field full"><span>사무실 비밀번호</span><input type="password" id="set-key" value="${esc(LSX.get('mj_key')||'')}" placeholder="관리자에게 받은 비밀번호" autocomplete="off"></label>
     </div>
-    <div class="row" style="margin-top:14px"><button class="btn pri" data-act="saveSetup">저장하고 연결</button><button class="btn ghost" data-act="logout">이 컴퓨터에서 비밀번호 지우기</button></div>
-    <p class="sub" id="setMsg" style="margin-top:10px">${isShared()?'현재 상태: '+esc($('#syncTxt').textContent):(u?'비밀번호를 입력하면 연결됩니다.':'아직 연결 전입니다. 지금 입력하는 매물은 이 컴퓨터에만 저장됩니다.')}</p>
-  </section>
-  <section class="panel" style="max-width:720px"><h3>처음 설치하는 관리자용</h3>
-    <p class="sub">저장소의 <b>README.md</b>에 구글 시트 만들기 → Apps Script 붙여넣기 → 웹앱 배포 순서가 그림 없이 따라 할 수 있게 적혀 있습니다.</p></section>`; }
+    <div class="row" style="margin-top:14px"><button class="btn pri" data-act="saveSetup">저장하고 연결</button><button class="btn ghost" data-act="logout">이 컴퓨터에서 비밀번호 모두 지우기</button></div></section>
+  <section class="panel" style="max-width:720px"><h3>2단계 · 열람 비밀번호 (연락처·현관 비밀번호)</h3>
+    <p class="sub" style="font-size:13px">집주인·손님 연락처, 현관 비밀번호, 매물장 원문, 삭제는 이 비밀번호를 입력한 사람만 됩니다. 기본은 브라우저를 닫거나 30분 동안 쓰지 않으면 다시 잠깁니다.</p>
+    ${isShared()&&S.level>=2?'<div class="row" style="margin-top:10px"><span class="tag good">열람 중</span><button class="btn sm" data-act="lockNow">지금 잠그기</button></div>':(isShared()?lockBox('열람 비밀번호'):'<p class="sub">먼저 1단계를 연결하세요.</p>')}</section>
+  <section class="panel" style="max-width:720px"><h3>비밀번호를 잊었을 때</h3>
+    <p class="sub" style="font-size:13px">관리자가 구글 시트 → <b>확장 프로그램 → Apps Script</b>를 열면 맨 위 두 줄(<code>PASSWORD</code>, <code>FULL_PASSWORD</code>)에 적혀 있습니다. 바꾼 뒤에는 <b>배포 → 배포 관리 → 새 버전</b>으로 다시 배포하세요.</p></section>`; }
 let rT=null; function refresh(){ clearTimeout(rT); rT=setTimeout(()=>{ const a=document.activeElement; if(a&&a.matches('input,textarea')&&a.id){ partial(); } else render(); if(DR) renderDrawer(); },60); }
 
 /* ---------- 렌더 ---------- */
@@ -700,7 +731,7 @@ document.addEventListener('change',async e=>{ const t=e.target;
   if(t.dataset.act==='clientSt'){ await updateRec('clients',t.dataset.id,{st:t.value},'상태를 바꿨습니다'); return; }
   if(t.dataset.act==='lst'){ await updateRec('listings',DR.id,{st:t.value},'매물 상태를 바꿨습니다'); return; }
 });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&DR) closeDrawer(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&DR) closeDrawer(); if(e.key==='Enter'&&e.target.id==='unlock-pw') document.querySelector('[data-act=unlock]')?.click(); });
 document.addEventListener('click',async e=>{
   const t=e.target.closest('[data-act],[data-go],[data-chip],[data-fchip],[data-seekstep],[data-sellstep]'); if(!t) return;
   if(t.dataset.go){ location.hash=t.dataset.go; return; }
@@ -720,9 +751,11 @@ document.addEventListener('click',async e=>{
   if(a==='touch'){ await updateRec('listings',DR.id,{d:todayISO()},'오늘 날짜로 확인 표시했습니다'); return; }
   if(a==='delL'){ if(!DR.del){ DR.del=true; renderDrawer(); return; } const id=DR.id; closeDrawer(); await removeRec('listings',id,'삭제했습니다'); return; }
   if(a==='delC'){ if(!DR.del){ DR.del=true; renderDrawer(); return; } const id=DR.id; closeDrawer(); await removeRec('clients',id,'삭제했습니다'); return; }
-  if(a==='saveSetup'){ const u=$('#set-api').value.trim(), k=$('#set-key').value.trim(); if(u) LSX.set('mj_api',u); LSX.set('mj_key',k||null);
-    if(!apiUrl()){ toast('웹앱 주소를 입력해 주세요'); return; } await loadAll(); $('#setMsg').textContent='현재 상태: '+$('#syncTxt').textContent; return; }
-  if(a==='logout'){ LSX.set('mj_key',null); toast('이 컴퓨터에서 비밀번호를 지웠습니다'); loadAll(); render(); return; }
+  if(a==='saveSetup'){ const u=($('#set-api')?.value||'').trim(), k=$('#set-key').value.trim(); if(u) LSX.set('mj_api',u); LSX.set('mj_key',k||null);
+    if(!apiUrl()){ toast('웹앱 주소를 입력해 주세요'); return; } await loadAll(); render(); return; }
+  if(a==='unlock'){ const ok=await unlock($('#unlock-pw').value.trim(),$('#unlock-rem')?.checked); if(ok){ renderDrawer(); render(); } return; }
+  if(a==='lockNow'){ lockAll('열람을 잠갔습니다'); renderDrawer(); render(); return; }
+  if(a==='logout'){ LSX.set('mj_key',null); SSX.set('mj_full',null); LSX.set('mj_full',null); S.level=0; toast('이 컴퓨터에서 비밀번호를 모두 지웠습니다'); loadAll(); render(); return; }
   if(a==='addDeal'){ SELL.f.deals.push({t:'전세',p:'',r:''}); render(); return; }
   if(a==='delDeal'){ SELL.f.deals.splice(+t.dataset.k,1); render(); return; }
   if(a==='copyTpl'){ copy($('#tplBox').textContent,t); return; }
