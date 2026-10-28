@@ -4,22 +4,21 @@
 /**
  * 매물장 응대 데스크 — 구글 시트 연결용 Apps Script
  *
- * ■ 비밀번호 두 개 (이 파일 안에서만 바꿉니다. 깃허브에는 실제 비밀번호를 올리지 마세요)
- *   PASSWORD      : 사무실 비밀번호. 매물 보기·검색·손님 응대·새 매물 접수 가능.
- *                   연락처, 현관 비밀번호, 내놓은 분 이름, 원문은 서버에서 아예 보내지 않습니다.
- *   FULL_PASSWORD : 열람 비밀번호. 위 정보까지 모두 보고 수정할 수 있습니다.
- *
- * ■ 바꾼 뒤에는 반드시: 배포 > 배포 관리 > 연필 > 버전: 새 버전 > 배포
- *
- * ■ 처음 배포: 배포 > 새 배포 > 유형: 웹 앱 / 실행: 나 / 액세스 권한: 모든 사용자
- *   구글 시트 자체는 관리자만 볼 수 있게 공유하지 마세요(시트에는 모든 정보가 있습니다).
+ * 이 코드는 고치지 말고 그대로 붙여넣으세요.
+ * 비밀번호는 구글 시트의 「설정」 탭에 적습니다.
+ *   B1 칸: 사무실 비밀번호 (모든 직원: 매물 보기·검색·응대·새 매물 접수)
+ *   B2 칸: 열람 비밀번호   (일부 직원: 연락처·현관 비밀번호·원문 보기, 삭제)
+ * 비밀번호를 바꾸면 바로 적용됩니다. (다시 배포할 필요 없음)
  */
-const PASSWORD = '여기에-사무실-비밀번호';
-const FULL_PASSWORD = '여기에-열람-비밀번호';
 
 /** 처음 한 번: 위쪽 함수 선택 칸에서 '처음실행'을 고르고 ▶ 실행 → 권한 허용 */
 function 처음실행() {
-  Logger.log('연결 확인: ' + SpreadsheetApp.getActive().getName() + ' / 매물 ' + (SpreadsheetApp.getActive().getSheetByName('매물').getLastRow() - 1) + '건');
+  const ss = SpreadsheetApp.getActive();
+  const pw = passwords_();
+  Logger.log('연결 확인: ' + ss.getName());
+  Logger.log('매물 ' + (ss.getSheetByName('매물').getLastRow() - 1) + '건, 손님 ' + (ss.getSheetByName('손님').getLastRow() - 1) + '건');
+  Logger.log('사무실 비밀번호: ' + (pw.office ? '입력됨' : '비어 있음 → 설정 탭 B1에 입력하세요'));
+  Logger.log('열람 비밀번호: ' + (pw.full ? '입력됨' : '비어 있음 → 설정 탭 B2에 입력하세요'));
 }
 
 const SHEETS = { listings: '매물', clients: '손님' };
@@ -29,15 +28,25 @@ const SECRET = {
   '손님': ['연락처', '원문']
 };
 
+function passwords_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('설정');
+  if (!sh) return { office: '', full: '' };
+  return {
+    office: String(sh.getRange('B1').getDisplayValue()).trim(),
+    full: String(sh.getRange('B2').getDisplayValue()).trim()
+  };
+}
+
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function level_(key) {
-  key = String(key || '');
-  const bad = /^여기에-/;
-  if (key && key === FULL_PASSWORD && !bad.test(FULL_PASSWORD)) return 2;
-  if (key && key === PASSWORD && !bad.test(PASSWORD)) return 1;
+  key = String(key || '').trim();
+  if (!key) return 0;
+  const pw = passwords_();
+  if (pw.full && key === pw.full) return 2;
+  if (pw.office && key === pw.office) return 1;
   return 0;
 }
 
@@ -56,7 +65,7 @@ function readSheet_(name, lv) {
 }
 
 function doGet(e) {
-  const lv = level_(e.parameter.key);
+  const lv = level_(e && e.parameter && e.parameter.key);
   if (!lv) return out_({ ok: false, error: 'password' });
   return out_({ ok: true, level: lv, listings: readSheet_(SHEETS.listings, lv), clients: readSheet_(SHEETS.clients, lv) });
 }

@@ -699,7 +699,7 @@ function viewSetup(){ const u=apiUrl(), fixed=!!CONFIG.API_URL; const lvTxt=!isS
     <p class="sub" style="font-size:13px">집주인·손님 연락처, 현관 비밀번호, 매물장 원문, 삭제는 이 비밀번호를 입력한 사람만 됩니다. 기본은 브라우저를 닫거나 30분 동안 쓰지 않으면 다시 잠깁니다.</p>
     ${isShared()&&S.level>=2?'<div class="row" style="margin-top:10px"><span class="tag good">열람 중</span><button class="btn sm" data-act="lockNow">지금 잠그기</button></div>':(isShared()?lockBox('열람 비밀번호'):'<p class="sub">먼저 1단계를 연결하세요.</p>')}</section>
   <section class="panel" style="max-width:720px"><h3>비밀번호를 잊었을 때</h3>
-    <p class="sub" style="font-size:13px">관리자가 구글 시트 → <b>확장 프로그램 → Apps Script</b>를 열면 맨 위 두 줄(<code>PASSWORD</code>, <code>FULL_PASSWORD</code>)에 적혀 있습니다. 바꾼 뒤에는 <b>배포 → 배포 관리 → 새 버전</b>으로 다시 배포하세요.</p></section>`; }
+    <p class="sub" style="font-size:13px">관리자가 구글 시트의 <b>「설정」 탭</b>을 열면 B1(사무실), B2(열람)에 적혀 있습니다. 거기서 바꾸면 바로 적용됩니다.</p></section>`; }
 let rT=null; function refresh(){ clearTimeout(rT); rT=setTimeout(()=>{ const a=document.activeElement; if(a&&a.matches('input,textarea')&&a.id){ partial(); } else render(); if(DR) renderDrawer(); },60); }
 
 /* ---------- 렌더 ---------- */
