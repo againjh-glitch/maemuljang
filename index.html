@@ -158,6 +158,10 @@ pre.raw{white-space:pre-wrap;word-break:break-word;background:var(--sunk);paddin
 .copybox{white-space:pre-wrap;background:var(--sunk);border-radius:8px;padding:12px;font-size:13px;margin-top:10px}
 .deal-row{display:grid;grid-template-columns:110px minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:center;margin-top:8px}
 .hint{font-size:12px;color:var(--brand);font-weight:600;min-height:16px}
+em.auto{font-style:normal;font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-left:4px}
+.cxcard{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--brand-soft)}
+details.panel summary{cursor:pointer;display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+section > .panel + .panel, section > .panel + details, section > details + .panel{margin-top:14px}
 @media (max-width:900px){
   .wiz,.split{grid-template-columns:minmax(0,1fr)}
   .live,.filters{position:static;max-height:none}
@@ -406,8 +410,8 @@ function viewSeek(){
 }
 
 /* ---------- 내놓는 손님 마법사 (매물 접수) ---------- */
-function emptyF(){ return {role:'소유자',ownerName:'',phone:'',carrier:'',phone2:'',phone2Who:'세입자',cat:'',deals:[{t:'매매',p:'',r:''}],name:'',addr:'',area:'',year:'',py:'',rooms:'',baths:'',dir:'',fee:'',elev:'',park:'',pet:'',options:'',movein:'',tenant:'',show:'',loan:'',ins:'',ad:'광고 가능',excl:'',fee2:'',note:'',tags:[]}; }
-const SELL={step:0,f:emptyF(),editId:null,saved:null};
+function emptyF(){ return {role:'소유자',ownerName:'',phone:'',carrier:'',phone2:'',phone2Who:'세입자',cat:'',deals:[{t:'매매',p:'',r:''}],name:'',addr:'',area:'',year:'',py:'',rooms:'',baths:'',dir:'',fee:'',elev:'',park:'',pet:'',options:'',movein:'',tenant:'',show:'',loan:'',ins:'',ad:'광고 가능',excl:'',fee2:'',note:'',tags:[],sup:'',ex:'',dongho:''}; }
+const SELL={step:0,f:emptyF(),editId:null,saved:null,mode:'quick'};
 const SELL_STEPS=['인사·본인 확인','매물 기본','상세 정보','일정·권리관계','확인·저장'];
 function sel(id,key,opts,val){ return `<select id="${id}" data-f="${key}"><option value="">선택</option>${opts.map(o=>`<option ${val===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`; }
 function inp(id,key,val,ph,type){ return `<input type="${type||'text'}" id="${id}" data-f="${key}" value="${esc(val)}" placeholder="${esc(ph||'')}">`; }
@@ -479,15 +483,204 @@ function sellStep(i){ const f=SELL.f;
     <div class="panel" style="padding:14px"><div class="row" style="justify-content:space-between"><span class="lbl">매물장 양식 (텔레그램용)</span><button class="btn sm" data-act="copyTpl">복사</button></div><div class="copybox" id="tplBox">${esc(txt)}</div></div>
     <div class="row" style="margin-top:14px"><button class="btn red" data-act="saveListing">${SELL.editId?'수정 내용 저장':'매물장에 저장'}</button></div>`; }
 }
+/* ---------- 단지 기본정보 (근처 아파트) ----------
+   네이버 부동산 단지 정보 기준. 단지를 추가하려면 같은 형식으로 한 줄 넣으면 됩니다.
+   types: 평형별 공급㎡ / 전용㎡ / 방 / 욕실 (모르면 비워 둠) */
+const COMPLEXES=[
+  {name:'양우',aliases:['양우아파트'],cat:'아파트',area:'소사본동',built:'2003.08',units:244,elev:true,park:true,types:[{sup:105.26,ex:84.77,rooms:3,baths:2}]},
+  {name:'신일해피트리',aliases:['소새울역신일해피트리','신일'],cat:'아파트',area:'소사본동',built:'2021.11',units:118,floors:15,elev:true,park:true,types:[{sup:52,ex:38.87},{sup:81.25,ex:59.94,rooms:3,baths:2}]},
+  {name:'청구',aliases:['소새울역청구','청구아파트'],cat:'아파트',area:'소사본동',built:'1995.03',units:202,elev:true,park:true,types:[{sup:159.61,ex:134.55}]},
+  {name:'주공1단지',aliases:['소사주공','주공'],cat:'아파트',area:'소사본동',built:'1995.11',units:1210,floors:15,elev:true,park:true,types:[{sup:78,ex:58.14}]},
+  {name:'두산삼성',aliases:['삼성.두산','삼성두산','두산'],cat:'아파트',area:'소사본동',built:'1995.03',units:524,floors:15,elev:true,park:true,types:[{sup:158,ex:134.97,rooms:4,baths:2}]},
+  {name:'풍림',aliases:['풍림아파트'],cat:'아파트',area:'소사본동',built:'1996.09',units:714,elev:true,park:true,types:[{sup:107,ex:84.77,rooms:3,baths:2}]},
+  {name:'중흥S클래스',aliases:['소새울역중흥S클래스','중흥s클래스','중흥'],cat:'아파트',area:'소사본동',built:'2006.06',units:1104,elev:true,park:true,types:[{sup:110.46,ex:84.85,rooms:3,baths:2}]},
+  /* 아래는 우리 매물장 기록에서 가져온 정보 (세대수·평형은 확인 후 채워 주세요) */
+  {name:'SJ로얄팰리스',aliases:['SJ로얄','sj로열팰리스','에스제이로얄'],cat:'아파트',area:'소사본동',built:'2019',elev:true,park:true,types:[{ex:84.41,rooms:3,baths:2}]},
+  {name:'소새울애비뉴',aliases:[],cat:'아파트',area:'소사본동',built:'2022.08',elev:true,park:true,types:[]},
+  {name:'현진에버빌',aliases:['부천소사현진에버빌'],cat:'아파트',area:'소사본동',built:'2023.02',elev:true,park:true,types:[]},
+  {name:'일루미스테이트',aliases:['일루미'],cat:'아파트',area:'범박동',built:'2024',elev:true,park:true,types:[{ex:84.97,rooms:3,baths:2}]},
+  {name:'한라비발디 프레스티지',aliases:['한라비발디'],cat:'아파트',area:'소사본동',built:'2024.01',elev:true,park:true,types:[]},
+  {name:'리더스아파트',aliases:['리더스'],cat:'아파트',area:'소사본동',built:'2019',elev:true,types:[]},
+  {name:'부천한신',aliases:['한신아파트','한신'],cat:'아파트',area:'소사본동',elev:true,types:[]},
+  {name:'스위첸',aliases:[],cat:'아파트',elev:true,types:[]},
+  {name:'클래시안시티',aliases:['클래시안'],cat:'아파트',area:'소사본동',elev:true,types:[]},
+  {name:'SK뷰',aliases:['sk뷰','에스케이뷰'],cat:'아파트',elev:true,types:[]},
+];
+const norm=s=>String(s||'').toLowerCase().replace(/[\s.·\-_()]/g,'');
+function findComplex(text){ const t=norm(text); if(!t) return null; let best=null,len=0;
+  for(const c of COMPLEXES) for(const a of [c.name,...(c.aliases||[])]){ const n=norm(a); if(n.length>=2&&t.includes(n)&&n.length>len){best=c;len=n.length;} }
+  return best; }
+const M2PY=3.3058;
+const pyOf=m=>Math.round(m/M2PY*10)/10;
+function typeLabel(t){ return [t.sup?`${t.sup}㎡(${Math.round(t.sup/M2PY)}평형)`:'', t.ex?`전용 ${t.ex}㎡`:'', t.rooms?`방${t.rooms}/욕${t.baths||'?'}`:''].filter(Boolean).join(' · '); }
+function complexLine(c){ return [c.cat,c.built&&c.built.replace('.','년 ')+(c.built.includes('.')?'월':'년')+' 준공',c.units&&c.units.toLocaleString()+'세대',c.area].filter(Boolean).join(' · '); }
+/* 단지 정보를 빈 칸에만 채움 (직원이 이미 쓴 값은 그대로) */
+function applyComplex(c,f,force){ const set=(k,v)=>{ if(v!=null&&v!==''&&(force||!f[k])) f[k]=String(v); };
+  f.name=c.name; set('cat',c.cat); set('area',c.area); set('year',c.built?c.built.slice(0,4):''); if(c.elev!=null) set('elev',c.elev?'있음':'없음'); if(c.park!=null) set('park',c.park?'가능':'불가');
+  if(c.types&&c.types.length===1) applyType(c.types[0],f,force); }
+function applyType(t,f,force){ const set=(k,v)=>{ if(v!=null&&v!==''&&(force||!f[k])) f[k]=String(v); };
+  set('sup',t.sup); set('ex',t.ex); set('rooms',t.rooms); set('baths',t.baths); f.py=String(t.sup?pyOf(t.sup):pyOf(t.ex)); }
+
+/* ---------- 매물장 양식 / 문자 붙여넣기 → 자동 입력 ---------- */
+function parseTemplate(text){
+  const T=String(text||'').replace(/\r/g,''); const f={}; const lines=T.split('\n');
+  const line=n=>{ const re=new RegExp('^\\s*'+n+'\\s*[.)]\\s*([^:：]*[:：])?\\s*(.*)$'); for(const l of lines){ const m=l.match(re); if(m) return m[2].trim(); } return ''; };
+  const head=(T.match(/\[([^\]]*)\]/)||[])[1]||lines[0]||'';
+  // 거래 조건
+  const deals=[]; const dealRe=/(매매|매도|전세|월세|반전세|임대)(?:가|금|가격)?[\s_:]*(?:아파트|빌라|오피스텔|상가|주택|단독|다가구|원룸)?[\s_:]*([0-9][0-9,.억천만원 ]*)(?:\s*\/\s*([0-9][0-9,]*))?/g; let m;
+  const src=head+' '+T;
+  while((m=dealRe.exec(src))){ let t=m[1]; const p=parseMan(String(m[2]).replace(/\s/g,'')); if(!p) continue;
+    if(t==='매도') t='매매'; if(t==='임대'||t==='반전세') t='월세';
+    if(m[3]&&t!=='매매'){ t='월세'; } const d={t,p:String(p),r:''}; if(t==='월세') d.r=String(parseInt(String(m[3]||'0').replace(/,/g,''))||'');
+    if(!deals.some(x=>x.t===d.t&&x.p===d.p)) deals.push(d); if(deals.length>=3) break; }
+  if(!deals.length){ const mm=head.match(/([0-9][0-9,]*)\s*\/\s*([0-9]+)/); if(mm) deals.push({t:'월세',p:String(parseMan(mm[1])),r:mm[2]}); }
+  if(deals.length) f.deals=deals;
+  // 집 종류
+  const catMap=[['주상복합','아파트'],['아파트','아파트'],['오피스텔','오피스텔'],['상가주택','상가주택'],['빌라','빌라'],['연립','빌라'],['다가구','단독·다가구'],['단독','단독·다가구'],['원룸','단독·다가구'],['상가','상가·사무실'],['사무실','상가·사무실'],['토지','토지'],['대지','토지'],['건물','건물']];
+  for(const [k,v] of catMap) if(head.includes(k)){ f.cat=v; break; }
+  // 1. 연식·평형·구조
+  const l1=line(1)||T;
+  const yr=l1.match(/((?:19|20)\d{2})\s*(?:년|\.|\/|-)/)||l1.match(/(?:^|\D)(\d{2})\s*년식/);
+  if(yr){ let y=+yr[1]; if(y<100) y+= y>40?1900:2000; if(y>1950&&y<=today.getFullYear()+1) f.year=String(y); }
+  const m2=[...l1.matchAll(/([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|제곱)/g)].map(x=>+x[1]);
+  if(m2.length>=2){ f.sup=String(Math.max(m2[0],m2[1])); f.ex=String(Math.min(m2[0],m2[1])); f.py=String(pyOf(+f.sup)); }
+  else if(m2.length===1){ f.ex=String(m2[0]); f.py=String(pyOf(m2[0])); }
+  else { const py=l1.match(/([0-9]+(?:\.[0-9]+)?)\s*평/); if(py) f.py=py[1]; }
+  const rm=l1.match(/방\s*([0-9])/); if(rm) f.rooms=rm[1];
+  const bt=l1.match(/(?:화장실|욕실|화)\s*([0-9])/); if(bt) f.baths=bt[1];
+  // 2. 주소
+  const l2=line(2); const cx=findComplex(l2||head||T);
+  if(cx){ f.name=cx.name; }
+  const noPh=s=>String(s||'').replace(/01[0-9][\s-]?\d{3,4}[\s-]?\d{4}/g,' ').replace(/(?<![\d-])\d{4}-\d{4}(?![\d-])/g,' ');
+  const where=noPh(l2||head||T);
+  /* 101동 504호 는 항상, 101-504 형식은 아파트 단지일 때만 (단독·빌라의 지번 231-54 와 구분) */
+  const dh=where.match(/(\d{1,4})\s*동\s*(\d{1,5})\s*호/)||(cx?(where.match(/(\d{2,4})\s*[-–]\s*(\d{3,5})(?!\d)/)):null);
+  if(dh) f.dongho=`${dh[1]}동 ${dh[2]}호`;
+  if(l2){ let a=noPh(l2); if(cx) for(const n of [cx.name,...cx.aliases].sort((x,y)=>y.length-x.length)) a=a.replace(new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),''); if(dh) a=a.replace(dh[0],''); a=a.replace(/경기도?\s*|부천시\s*|소사구\s*|원미구\s*|오정구\s*/g,'').replace(/\s{2,}/g,' ').replace(/^[\s,/]+|[\s,/]+$/g,''); if(cx) a=a.replace(/^(아파트|단지)\b/,'').trim(); if(a) f.addr=a; }
+  if(!l2&&!f.addr){ /* 번호 없는 문자: ] 뒤 첫 구절, 또는 동네·호수가 들어간 줄을 주소로 */
+    const after=(T.split(']')[1]||'').split(/[\/\n]/)[0];
+    const cand=[after,...lines].map(x=>noPh(x).replace(/^[\s■●▶*\-•]+/,'').trim()).find(x=>x&&x.length<60&&/(동\s*\d|호|빌|타워|아파트|맨션|팰리스|하이츠|단지)/.test(x)&&!/(통화|안녕|부탁|매물입니다)/.test(x));
+    if(cand) f.addr=cand.replace(/경기도?\s*|부천시\s*|소사구\s*|원미구\s*/g,'').trim(); }
+  const ar=(l2||T).match(/(소사본동|소사동|괴안동|역곡동|심곡본동|심곡동|범박동|송내동|중동|원종동|옥길동)/); if(ar) f.area=ar[1];
+  // 3. 향 / 관리비
+  const l3=line(3);
+  if(l3){ const d=l3.match(/(정?남동|정?남서|북동|북서|정?남|정?북|동|서)\s*향?/); if(d){ let v=d[1].replace('정',''); f.dir=v+'향'; }
+    const fe=l3.match(/(?:관리비\s*)?([0-9][0-9,.]*\s*만\s*원?|없음|쓴\s*만큼|쓰는\s*대로)/); if(fe) f.fee=fe[1].replace(/\s/g,''); }
+  // 4. 옵션
+  const l4=line(4); if(l4&&!/^[-]?$/.test(l4)) f.options=l4;
+  if(/엘[리레]?베|엘베\s*[oO있0]/.test(T)&&!/엘[리레]?베[이터]*\s*(x|X|없)/.test(T)) f.elev='있음'; if(/엘[리레]?베[이터]*\s*(x|X|없)/.test(T)) f.elev='없음';
+  // 5. 주차
+  const l5=line(5); if(l5){ if(/^(x|X|불가|안됨|없음|주차\s*안|불)/.test(l5)||/불가|안됨|없음/.test(l5)) f.park='불가'; else if(/^[oO0]$|가능|[0-9]\s*대|있음|o/.test(l5)) f.park='가능'; }
+  // 6. 날짜
+  const l6=line(6); if(l6) f.movein=l6; if(/공실/.test(T)) f.tenant='공실';
+  // 7. 특이사항
+  const l7=line(7); if(l7) f.note=l7;
+  // 8. 이름 / 연락처 / 통신사
+  const ph=[...T.matchAll(/01[0-9][\s-]?\d{3,4}[\s-]?\d{4}/g)].map(x=>{ const q=x[0].replace(/\D/g,''); return q.slice(0,3)+'-'+q.slice(3,-4)+'-'+q.slice(-4); });
+  if(ph[0]) f.phone=ph[0]; if(ph[1]) f.phone2=ph.slice(1).join(', ');
+  const l8=line(8)||(lines.find(l=>/01[0-9]/.test(l))||'');
+  const cr=l8.match(/(skt|sk|kt|lg\s*u\+|lgu\+|lg|알뜰)/i); if(cr){ const c=cr[1].toUpperCase().replace(/\s/g,''); f.carrier=c==='SK'||c==='SKT'?'SKT':c==='KT'?'KT':c.startsWith('LG')?'LG U+':'알뜰폰'; }
+  const nm=l8.replace(/^.*?\)\s*:?/,'').replace(/^\s*:\s*/,'').replace(/01[0-9][\s\d-]+/g,' ').replace(/(skt|sk|kt|lg\s*u\+|lgu\+|lg|알뜰폰?)/ig,' ').match(/([가-힣]{2,4})/);
+  if(nm&&!/^(이름|연락처|통신사|임대인|임차인|세입자|소유자|주인|관리|관리인|아내|남편|부인|아들|딸|사모님)$/.test(nm[1])) f.ownerName=nm[1];
+  if(/임차인|세입자/.test(l8)) f.role='세입자';
+  return {f,cx};
+}
+function applyParsed(p){ const F=SELL.f; const filled=[];
+  for(const [k,v] of Object.entries(p.f)){ if(v==null||v==='') continue; if(k==='deals'){ F.deals=v; filled.push('deals'); continue; } F[k]=v; filled.push(k); }
+  if(p.cx) applyComplex(p.cx,F,false);
+  if(p.cx&&F.sup){ const t=(p.cx.types||[]).find(t=>t.sup&&Math.abs(t.sup-(+F.sup))<1.5); if(t) applyType(t,F,false); }
+  SELL.filled=new Set(filled); return filled.length; }
+
+/* ---------- 빠른 접수 화면 ---------- */
+function quickSell(){ const f=SELL.f; const cx=findComplex(f.name);
+  const doc=buildListing(); const cl=doc.deals.length?clientsFor({...doc,st:'active',d:todayISO()}):[];
+  const later=laterList(doc);
+  const lbl=(t,k)=>`<span>${t}${SELL.filled&&SELL.filled.has(k)?' <em class="auto">자동</em>':''}</span>`;
+  return `<div class="row" style="justify-content:space-between"><div><h1>${SELL.editId?'매물 수정':'매물 접수'}</h1><p class="sub">평소 받는 8가지만 적으면 됩니다. 나머지는 단지 정보로 자동 입력되거나 나중에 받아도 됩니다.</p></div>
+    <div class="row">${SELL.editId?'':'<button class="btn ghost sm" data-act="sellMode" data-m="steps">단계별 안내로 (처음 직원용)</button>'}<button class="btn ghost sm" data-act="resetSell">${SELL.editId?'수정 취소':'새로 쓰기'}</button></div></div>
+  <div class="wiz"><section style="min-width:0">
+    ${SELL.editId?'':`<div class="panel"><div class="row" style="justify-content:space-between"><h3>매물장 양식·문자 붙여넣기</h3><span class="sub" style="margin:0;font-size:13px">텔레그램 양식, 집주인 문자 그대로</span></div>
+      <textarea id="f-paste" placeholder="[매매 5억4,000]&#10;1. 연식, 평형, 구조 : 81.25㎡ / 59.94㎡, 방3/욕실2&#10;2. 주소지 : 신일해피트리 101-504&#10;…&#10;8. 이름/연락처(통신사) 홍길동 kt 010-0000-0000" style="margin-top:8px;min-height:110px">${esc(SELL.paste||'')}</textarea>
+      <div class="row" style="margin-top:8px"><button class="btn pri" data-act="parsePaste">자동으로 채우기</button><span class="sub" style="margin:0;font-size:13px" id="pasteMsg">${SELL.pasteMsg||''}</span></div></div>`}
+    <div class="panel">
+      <h3>2. 단지 · 주소</h3>
+      <div class="fgrid">
+        <label class="field">${lbl('단지·건물 이름','name')}<input type="text" id="f-name" data-f="name" list="cxList" value="${esc(f.name)}" placeholder="예: 양우, 신일, 풍림"><datalist id="cxList">${COMPLEXES.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist></label>
+        <label class="field">${lbl('동 · 호수','dongho')}${inp('f-dongho','dongho',f.dongho,'예: 101동 504호')}</label>
+        <label class="field full">${lbl('주소 (단지 밖 빌라·단독은 여기에)','addr')}${inp('f-addr','addr',f.addr,'예: 소사본동 219-24 진영리더스빌 1동 303호')}</label>
+      </div>
+      ${cx?`<div class="cxcard"><div><b>${esc(cx.name)}</b> <span class="sub" style="margin:0">${esc(complexLine(cx))}</span></div>
+        ${cx.types&&cx.types.length?`<div class="chips" style="margin-top:8px">${cx.types.map((t,i)=>`<button class="chip ${f.sup&&t.sup&&Math.abs(t.sup-(+f.sup))<1.5||(!t.sup&&f.ex&&Math.abs(t.ex-(+f.ex))<1)?'on':''}" data-act="pickType" data-i="${i}">${esc(typeLabel(t))}</button>`).join('')}</div><small class="sub" style="font-size:12px">평형을 누르면 면적·방·욕실이 채워집니다.</small>`:''}</div>`:(f.name?`<p class="sub" style="font-size:13px">등록되지 않은 단지입니다. 연식·평형을 직접 적어 주세요.</p>`:'')}
+      <div class="field" style="margin-top:12px">${lbl('집 종류','cat')}${fchips('cat',CATS,f.cat)}</div>
+    </div>
+    <div class="panel"><h3>거래 조건</h3>
+      ${f.deals.map((d,k)=>`<div class="deal-row">
+        <select id="f-dt-${k}" data-deal="${k}" data-dk="t">${DEALS.map(t=>`<option ${d.t===t?'selected':''}>${t}</option>`).join('')}</select>
+        <label class="field"><input type="text" id="f-dp-${k}" data-deal="${k}" data-dk="p" value="${esc(d.p)}" placeholder="${d.t==='월세'?'보증금 예: 2000':'금액 예: 4억5천'}"><span class="hint" id="f-dp-${k}-h">${parseMan(d.p)?man(parseMan(d.p))+' 만원':''}</span></label>
+        ${d.t==='월세'?`<label class="field"><input type="number" id="f-dr-${k}" data-deal="${k}" data-dk="r" value="${esc(d.r)}" placeholder="월세 (만원)"><span class="hint"></span></label>`:'<span></span>'}
+        <button class="btn ghost sm" data-act="delDeal" data-k="${k}" ${f.deals.length<2?'disabled':''}>삭제</button></div>`).join('')}
+      <button class="btn sm" data-act="addDeal" style="margin-top:8px">+ 거래 조건 추가</button></div>
+    <div class="panel"><div class="fgrid">
+      <div class="field full"><h3>1. 연식 · 평형 · 구조</h3></div>
+      <label class="field">${lbl('연식 (준공 연도)','year')}${inp('f-year','year',f.year,'예: 2003','number')}</label>
+      <label class="field">${lbl('평형 (평)','py')}${inp('f-py','py',f.py,'예: 32','number')}<small>공급·전용㎡를 넣으면 자동 계산</small></label>
+      <label class="field">${lbl('공급 ㎡','sup')}${inp('f-sup','sup',f.sup,'예: 81.25','number')}</label>
+      <label class="field">${lbl('전용 ㎡','ex')}${inp('f-ex','ex',f.ex,'예: 59.94','number')}</label>
+      <label class="field">${lbl('방','rooms')}${inp('f-rooms','rooms',f.rooms,'예: 3','number')}</label>
+      <label class="field">${lbl('욕실','baths')}${inp('f-baths','baths',f.baths,'예: 2','number')}</label>
+      <div class="field full"><h3 style="margin-top:6px">3. 향 · 관리비 / 5. 주차</h3></div>
+      <label class="field">${lbl('향','dir')}${sel('f-dir','dir',DIRS,f.dir)}</label>
+      <label class="field">${lbl('관리비','fee')}${inp('f-fee','fee',f.fee,'예: 18만')}</label>
+      <div class="field">${lbl('주차','park')}${fchips('park',['가능','불가'],f.park)}</div>
+      <div class="field">${lbl('엘리베이터','elev')}${fchips('elev',['있음','없음'],f.elev)}</div>
+      <label class="field full">${lbl('4. 옵션','options')}${inp('f-options','options',f.options,'예: 시스템에어컨 2대, 욕실 줄눈 세라믹')}</label>
+      <label class="field">${lbl('6. 날짜 (입주 가능일)','movein')}${inp('f-movein','movein',f.movein,'예: 협의, 즉시')}</label>
+      <label class="field">${lbl('현재 거주','tenant')}${sel('f-tenant','tenant',['공실','소유자 거주','세입자 거주'],f.tenant)}</label>
+      <label class="field full">${lbl('7. 특이사항','note')}<textarea id="f-note" data-f="note" placeholder="예: 도배 장판은 해줄 수 있다고 함">${esc(f.note)}</textarea></label>
+      <div class="field full"><h3 style="margin-top:6px">8. 이름 · 연락처 🔒</h3></div>
+      ${SELL.editId&&!canSee()?'<div class="field full"><div class="tip" style="margin:0">기존 매물의 연락처는 열람 비밀번호가 있어야 고칠 수 있습니다. 비워 두면 그대로 유지됩니다.</div></div>':''}
+      <label class="field">${lbl('이름','ownerName')}${inp('f-owner','ownerName',f.ownerName,'예: 명찬식')}</label>
+      <label class="field">${lbl('연락처','phone')}${inp('f-phone','phone',f.phone,'010-0000-0000','tel')}</label>
+      <label class="field">${lbl('통신사','carrier')}${sel('f-carrier','carrier',['SKT','KT','LG U+','알뜰폰'],f.carrier)}</label>
+      <label class="field">${lbl('관계','role')}${sel('f-role','role',['소유자','배우자·가족','세입자','대리인'],f.role)}</label>
+    </div></div>
+    <details class="panel" ${SELL.moreOpen?'open':''} id="moreBox"><summary><b>나중에 받아도 되는 정보</b> <span class="sub" style="margin:0;font-size:13px">현관 비번, 세입자 연락처, 반려동물, 근저당, 보증보험, 광고, 수수료</span></summary>
+      <div class="fgrid">
+        <label class="field full"><span>집 보는 방법 · 현관 비밀번호 🔒</span>${inp('f-show','show',f.show,'예: 현관 #1234# / 평일 6시 이후')}</label>
+        <label class="field"><span>추가 연락처 (세입자 등) 🔒</span>${inp('f-phone2','phone2',f.phone2,'010-0000-0000','tel')}</label>
+        <div class="field"><span>반려동물</span>${fchips('pet',['가능','불가'],f.pet)}</div>
+        <label class="field"><span>근저당 · 융자</span>${sel('f-loan','loan',['없음','있음','신탁','모름'],f.loan)}</label>
+        <label class="field"><span>전세대출 · 보증보험</span>${sel('f-ins','ins',['가능','불가','확인 필요'],f.ins)}</label>
+        <label class="field"><span>네이버 광고</span>${sel('f-ad','ad',['광고 가능','광고 안 함'],f.ad)}</label>
+        <label class="field"><span>우리에게만 내놓음</span>${sel('f-excl','excl',['단독','여러 곳'],f.excl)}</label>
+        <label class="field full"><span>수수료 · 특이 조건</span>${inp('f-fee2','fee2',f.fee2,'예: 복비 2배 / 공동중개 불가')}</label>
+        <div class="field full"><span>특징 표시</span>${fchips('tags',TAGS_SELL,f.tags,true)}</div>
+      </div></details>
+    <div class="panel"><div class="row" style="justify-content:space-between"><span class="lbl">매물장 양식 (텔레그램용)</span><button class="btn sm" data-act="copyTpl">복사</button></div><div class="copybox" id="tplBox">${esc(templateText(doc,f))}</div></div>
+    <div class="row" style="margin-top:14px"><button class="btn red" data-act="saveListing">${SELL.editId?'수정 내용 저장':'매물장에 저장'}</button>${missing(doc).length?`<span class="sub" style="margin:0;font-size:13px">비어 있음: ${missing(doc).join(', ')} (그래도 저장됨)</span>`:''}</div>
+  </section>
+  <aside class="panel live"><div class="lbl">이 매물을 찾던 대기 손님</div><div class="count">${cl.length}<small> 명</small></div>
+    <div class="mini">${cl.slice(0,5).map(x=>`<div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${phoneOf(x.c)}</b>${esc(qSummary(clientQ(x.c)))}</div>`).join('')||'<p class="sub" style="font-size:13px">거래 조건·금액을 넣으면 바로 나옵니다.</p>'}</div>
+    ${later.length?`<div class="lbl" style="margin-top:16px">나중에 받을 정보</div><div class="chips" style="margin-top:6px">${later.map(t=>`<span class="tag unk">${t}</span>`).join('')}</div>`:''}
+  </aside></div>`; }
+/* 저장 후에도 채우면 좋은 항목 */
+function laterList(l){ const a=[]; const tags=l.tags||[]; const home=!['상가·사무실','건물','토지'].includes(l.cat);
+  if(!l.show&&!(l.locked||[]).includes('집보는법')) a.push('집 보는 법·현관 비번');
+  if(home&&l.pet==null) a.push('반려동물');
+  if(home&&!tags.some(t=>/보증보험|전세대출/.test(t))&&(l.deals||[]).some(d=>d.t!=='매매')) a.push('보증보험 가능 여부');
+  if(l.rooms==null&&home) a.push('방 수'); if(!l.year) a.push('연식'); if(l.park==null) a.push('주차');
+  return a; }
+
 function viewSell(){
   if(SELL.saved) return savedView();
+  if(SELL.mode==='quick'||SELL.editId) return quickSell();
   const st=SELL.step;
   const steps=`<div class="steps">${SELL_STEPS.map((t,i)=>`<button class="step ${i===st?'on':i<st?'done':''}" data-sellstep="${i}"><i>${i<st?'✓':i+1}</i>${t}</button>`).join('')}</div>`;
   const doc=buildListing(); const cl=doc.deals.length?clientsFor({...doc,st:'active',d:todayISO()}):[];
   const side=`<aside class="panel live"><div class="lbl">이 매물을 찾던 대기 손님</div><div class="count">${cl.length}<small> 명</small></div>
     <p class="sub" style="font-size:13px">거래 종류·금액·방 수를 입력하면 기다리던 손님이 바로 나옵니다.</p>
     <div class="mini">${cl.slice(0,5).map(x=>`<div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${phoneOf(x.c)}</b>${esc(qSummary(clientQ(x.c)))}</div>`).join('')}</div></aside>`;
-  return `<div class="row" style="justify-content:space-between"><div><h1>${SELL.editId?'매물 수정':'집 내놓는 손님'}</h1><p class="sub">우리 매물장 양식(1~8번) 순서 그대로 물어봅니다.</p></div><button class="btn ghost sm" data-act="resetSell">${SELL.editId?'수정 취소':'처음부터'}</button></div>${steps}
+  return `<div class="row" style="justify-content:space-between"><div><h1>${SELL.editId?'매물 수정':'집 내놓는 손님'}</h1><p class="sub">우리 매물장 양식(1~8번) 순서 그대로 물어봅니다.</p></div><div class="row"><button class="btn ghost sm" data-act="sellMode" data-m="quick">빠른 접수로</button><button class="btn ghost sm" data-act="resetSell">처음부터</button></div></div>${steps}
   <div class="wiz"><section class="panel">${sellStep(st)}
     <div class="navbar"><button class="btn" data-sellstep="${st-1}" ${st===0?'disabled':''}>← 이전</button>${st<4?`<button class="btn pri" data-sellstep="${st+1}">다음: ${SELL_STEPS[st+1]} →</button>`:''}</div></section>${side}</div>`;
 }
@@ -503,17 +696,19 @@ function buildListing(){ const f=SELL.f;
   const notes=[]; if(f.options)notes.push(f.options); if(f.fee)notes.push('관리비 '+f.fee); if(f.movein)notes.push('입주 '+f.movein); if(f.tenant&&f.tenant!=='공실')notes.push(f.tenant);
   if(f.loan&&f.loan!=='신탁')notes.push('근저당 '+f.loan); if(f.fee2)notes.push(f.fee2); if(f.note)notes.push(f.note);
   const yn=(v,a,b)=>v===a?true:v===b?false:null; const num=v=>v===''||v==null?null:+v;
-  const doc={cat:f.cat||'기타',deals,name:f.name.trim(),addr:f.addr.trim(),area:f.area.trim(),rooms:num(f.rooms),baths:num(f.baths),py:num(f.py),year:num(f.year),dir:f.dir,
+  if(!f.py&&(f.sup||f.ex)) f.py=String(pyOf(+(f.sup||f.ex)));
+  if(f.sup||f.ex) notes.unshift([f.sup&&'공급 '+f.sup+'㎡',f.ex&&'전용 '+f.ex+'㎡'].filter(Boolean).join(' / '));
+  const doc={cat:f.cat||'기타',deals,name:f.name.trim(),addr:[f.addr.trim(),(f.dongho||'').trim()].filter(Boolean).join(' '),area:f.area.trim(),rooms:num(f.rooms),baths:num(f.baths),py:num(f.py),year:num(f.year),dir:f.dir,
     elev:yn(f.elev,'있음','없음'),park:yn(f.park,'가능','불가'),pet:yn(f.pet,'가능','불가'),tags,note:notes.join(' / '),
     phones:[f.phone,f.phone2].map(p=>p.trim()).filter(Boolean),owner:[f.role,f.ownerName,f.carrier].filter(Boolean).join(' '),show:f.show,st:'active',d:todayISO()};
   Object.keys(doc).forEach(k=>{ if(doc[k]===null||doc[k]==='') delete doc[k]; });
   return doc; }
-function missing(d){ const m=[]; if(!d.addr)m.push('주소'); if(!d.deals.length)m.push('거래 조건·금액'); if(!d.phones.length)m.push('연락처'); if(d.rooms==null)m.push('방 수'); if(!d.cat||d.cat==='기타')m.push('집 종류'); return m; }
+function missing(d){ const m=[]; if(!d.addr&&!d.name)m.push('주소·단지'); if(!d.deals.length)m.push('거래 조건·금액'); if(!d.phones.length&&!SELL.editId)m.push('연락처'); return m; }
 function templateText(d,f){
   const head=`[${d.cat||'집종류'} ${d.deals.map(x=>x.t+' '+dealTxt(x)).join(' / ')||'거래종류, 가격'}]`;
   return `${head}
-1. 연식, 평형, 구조 : ${[f.year&&f.year+'년식',f.py&&f.py+'평',(f.rooms||f.baths)&&`방${f.rooms||'?'}, 화${f.baths||'?'}`].filter(Boolean).join(' / ')}
-2. 주소지 : ${[f.name,f.addr].filter(Boolean).join(' ')}
+1. 연식, 평형, 구조 : ${[f.year&&f.year+'년식',(f.sup||f.ex)?[f.sup&&f.sup+'㎡',f.ex&&f.ex+'㎡'].filter(Boolean).join(' / '):(f.py&&f.py+'평'),(f.rooms||f.baths)&&`방${f.rooms||'?'}/욕실${f.baths||'?'}`].filter(Boolean).join(', ')}
+2. 주소지 : ${[f.name,f.dongho,f.addr].filter(Boolean).join(' ')}
 3. 향/관리비 : ${[f.dir,f.fee].filter(Boolean).join(' / ')}
 4. 옵션 : ${f.options}${f.elev?` (엘베 ${f.elev})`:''}
 5. 주차 : ${f.park}
@@ -584,6 +779,7 @@ function renderDrawer(){ if(!DR){ $('#layer').innerHTML=''; return; }
     ${l.owner?`<dt>내놓은 분</dt><dd>${esc(l.owner)}</dd>`:''}${l.show?`<dt>집 보는 법</dt><dd class="secret">${esc(l.show)}</dd>`:''}`:''}
     <dt>구조</dt><dd>${esc(specs(l))}</dd>${l.note?`<dt>메모</dt><dd>${esc(l.note)}</dd>`:''}
     ${(l.tags||[]).length?`<dt>특징</dt><dd>${l.tags.map(t=>`<span class="tag ${t==='급매'?'hot':''}">${esc(t)}</span>`).join(' ')}</dd>`:''}
+    ${laterList(l).length?`<dt>나중에 받을 것</dt><dd>${laterList(l).map(t=>`<span class="tag unk">${t}</span>`).join(' ')} <button class="btn sm" data-act="edit" style="margin-left:4px">채우기</button></dd>`:''}
     <dt>상태</dt><dd><select id="dr-st" data-act="lst" style="width:auto">${[['active','진행 중'],['hold','보류'],['done','거래 완료']].map(([k,t])=>`<option value="${k}" ${l.st===k?'selected':''}>${t}</option>`).join('')}</select></dd></dl>
     <div class="row" style="margin-top:14px"><button class="btn ${picked?'':'pri'}" data-act="pick">${picked?'보여줄 집에서 빼기':'보여줄 집에 담기'}</button><button class="btn" data-act="edit">수정</button><button class="btn" data-act="touch">오늘 확인함</button></div>
     <div class="section" style="margin-top:20px"><h3>이 매물 찾는 대기 손님 ${cl.length}명</h3>${cl.slice(0,8).map(x=>`<div class="mini"><div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${phoneOf(x.c)}</b>${esc(qSummary(clientQ(x.c)))}</div></div>`).join('')}</div>
@@ -719,18 +915,21 @@ let typeT=null;
 document.addEventListener('input',e=>{ const t=e.target;
   if(t.dataset.q){ const q=qOf(t.dataset.scope); q[t.dataset.q]=t.value; clearTimeout(typeT); typeT=setTimeout(partial,180); return; }
   if(t.dataset.who){ SEEK.who[t.dataset.who]=t.value; return; }
-  if(t.dataset.f){ SELL.f[t.dataset.f]=t.value; clearTimeout(typeT); typeT=setTimeout(partial,250); return; }
+  if(t.id==='f-paste'){ SELL.paste=t.value; return; }
+  if(t.dataset.f){ SELL.f[t.dataset.f]=t.value; if(t.dataset.f==='sup'||t.dataset.f==='ex'){ const v=+(SELL.f.sup||SELL.f.ex); if(v) SELL.f.py=String(pyOf(v)); } clearTimeout(typeT); typeT=setTimeout(partial,250); return; }
   if(t.dataset.deal){ const d=SELL.f.deals[+t.dataset.deal]; d[t.dataset.dk]=t.value; if(t.dataset.dk==='t'){ render(); return; } clearTimeout(typeT); typeT=setTimeout(partial,250); return; }
 });
 document.addEventListener('change',async e=>{ const t=e.target;
   if(t.dataset.qc){ qOf(t.dataset.scope)[t.dataset.qc]=t.checked; partial(); return; }
   if(t.dataset.q && t.tagName==='SELECT'){ qOf(t.dataset.scope)[t.dataset.q]=t.value; partial(); return; }
+  if(t.id==='f-name'){ const c=findComplex(t.value); if(c){ applyComplex(c,SELL.f,false); toast(c.name+' 단지 정보를 채웠습니다'); } render(); return; }
   if(t.dataset.f && t.tagName==='SELECT'){ SELL.f[t.dataset.f]=t.value; render(); return; }
   if(t.dataset.deal && t.dataset.dk==='t'){ const d=SELL.f.deals[+t.dataset.deal]; d.t=t.value; render(); return; }
   if(t.dataset.act==='sort'){ FIND.sort=t.value; render(); return; }
   if(t.dataset.act==='clientSt'){ await updateRec('clients',t.dataset.id,{st:t.value},'상태를 바꿨습니다'); return; }
   if(t.dataset.act==='lst'){ await updateRec('listings',DR.id,{st:t.value},'매물 상태를 바꿨습니다'); return; }
 });
+document.addEventListener('toggle',e=>{ if(e.target.id==='moreBox') SELL.moreOpen=e.target.open; },true);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&DR) closeDrawer(); if(e.key==='Enter'&&e.target.id==='unlock-pw') document.querySelector('[data-act=unlock]')?.click(); });
 document.addEventListener('click',async e=>{
   const t=e.target.closest('[data-act],[data-go],[data-chip],[data-fchip],[data-seekstep],[data-sellstep]'); if(!t) return;
@@ -756,10 +955,14 @@ document.addEventListener('click',async e=>{
   if(a==='unlock'){ const ok=await unlock($('#unlock-pw').value.trim(),$('#unlock-rem')?.checked); if(ok){ renderDrawer(); render(); } return; }
   if(a==='lockNow'){ lockAll('열람을 잠갔습니다'); renderDrawer(); render(); return; }
   if(a==='logout'){ LSX.set('mj_key',null); SSX.set('mj_full',null); LSX.set('mj_full',null); S.level=0; toast('이 컴퓨터에서 비밀번호를 모두 지웠습니다'); loadAll(); render(); return; }
+  if(a==='parsePaste'){ const txt=($('#f-paste')?.value||'').trim(); SELL.paste=txt; if(!txt){ toast('붙여넣을 내용을 먼저 넣어 주세요'); return; }
+    const p=parseTemplate(txt); const n=applyParsed(p); SELL.pasteMsg=n?`${n}개 칸을 채웠습니다${p.cx?' · '+p.cx.name+' 단지 정보 자동 입력':''}. 노란 '자동' 표시를 확인하세요.`:'알아볼 수 있는 내용이 없습니다. 직접 입력해 주세요.'; render(); return; }
+  if(a==='pickType'){ const c=findComplex(SELL.f.name); const tp=c&&c.types[+t.dataset.i]; if(tp){ applyType(tp,SELL.f,true); render(); } return; }
+  if(a==='sellMode'){ SELL.mode=t.dataset.m; render(); window.scrollTo(0,0); return; }
   if(a==='addDeal'){ SELL.f.deals.push({t:'전세',p:'',r:''}); render(); return; }
   if(a==='delDeal'){ SELL.f.deals.splice(+t.dataset.k,1); render(); return; }
   if(a==='copyTpl'){ copy($('#tplBox').textContent,t); return; }
-  if(a==='resetSell'){ SELL.f=emptyF(); SELL.step=0; SELL.editId=null; SELL.saved=null; render(); window.scrollTo(0,0); return; }
+  if(a==='resetSell'){ SELL.f=emptyF(); SELL.step=0; SELL.editId=null; SELL.saved=null; SELL.paste=''; SELL.pasteMsg=''; SELL.filled=null; render(); window.scrollTo(0,0); return; }
   if(a==='resetSeek'){ SEEK.step=0; SEEK.q=emptyQ(); SEEK.who={name:'',phone:'',people:'',movein:'',note:''}; SEEK.picks=[]; render(); window.scrollTo(0,0); return; }
   if(a==='clearFind'){ FIND.q={...emptyQ(),showAll:FIND.q.showAll}; render(); return; }
   if(a==='clFilter'){ CL.filter=t.dataset.k; render(); return; }
