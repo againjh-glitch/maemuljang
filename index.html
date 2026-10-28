@@ -167,6 +167,14 @@ em.auto{font-style:normal;font-size:11px;font-weight:700;padding:1px 6px;border-
 details.panel summary{cursor:pointer;display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
 section > .panel + .panel, section > .panel + details, section > details + .panel{margin-top:14px}
 
+/* 수수료 계산기 */
+.calc-fab{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;font:inherit;font-weight:700;font-size:14px;padding:12px 16px;border-radius:999px;border:0;background:var(--stamp);color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.calc{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 12px 32px rgba(0,0,0,.2)}
+.has-drawer .calc-fab{display:none}
+@media (min-width:1000px){ .has-drawer .calc{right:calc(min(560px,100%) + 16px)} .has-drawer .calc-fab{display:block;right:calc(min(560px,100%) + 16px)} }
+.calc .seg .chip{padding:6px 12px;font-size:13px}
+.calc-big{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:12px;padding:12px;border-radius:10px;background:var(--stamp-soft)}
+.calc-big span{font-size:13px;color:var(--muted)} .calc-big b{font-size:24px;color:var(--stamp)}
 /* 계약 */
 .feet td{vertical-align:middle} .feet input{max-width:160px} tr.off td{opacity:.45}
 .feesum{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)} .feesum b{font-size:22px;color:var(--stamp)}
@@ -246,6 +254,7 @@ input[type=date],input[type=time]{font:inherit;color:var(--ink);background:var(-
 </div></header>
 <main class="wrap" id="main"></main>
 <div id="layer"></div>
+<div id="calcBox"></div>
 
 <script>
 'use strict';
@@ -1079,12 +1088,42 @@ function viewDeals(){ const T=todayISO(), ym=T.slice(0,7), yr=T.slice(0,4);
     <td>${KST[k.st]}${k.paid?' · <span class="tag good">받음</span>':k.st!=='cancel'?' · <span class="tag unk">미수령</span>':''}</td></tr>`; }).join('')}</tbody></table>`:`<div class="empty">아직 등록된 계약이 없습니다. 매물 상세나 손님 상세의 <b>계약 등록</b>, 또는 위의 <b>+ 계약 등록</b>을 누르세요.</div>`}</div>
   <p class="sub" style="font-size:12px;margin-top:10px">법정 상한: 경기도 중개보수 요율표 기준. 주택 매매 5천 미만 0.6%(한도 25만)·2억 미만 0.5%(한도 80만)·9억 미만 0.4%·12억 미만 0.5%·15억 미만 0.6%·15억 이상 0.7% / 주택 임대차 5천 미만 0.5%(한도 20만)·1억 미만 0.4%(한도 30만)·6억 미만 0.3%·12억 미만 0.4%·15억 미만 0.5%·15억 이상 0.6% / 주거용 오피스텔 매매 0.5%·임대 0.4% / 주택 외 0.9% 이내 협의. 월세는 보증금+월세×100 (5천만원 미만이면 ×70).</p>`; }
 
+
+/* ---------- 수수료 계산기 (어느 화면에서나 오른쪽 아래 버튼) ---------- */
+const CALC={open:false,deal:'매매',kind:'주택',price:'',rent:'',vat:false};
+function calcHTML(){ if(!CALC.open) return `<button class="calc-fab" data-act="calcOpen" aria-label="수수료 계산기 열기">₩ 수수료 계산</button>`;
+  const P=parseMan(CALC.price)||0, R=+CALC.rent||0; const v=txValue(CALC.deal,P,R); const has=CALC.deal==='월세'?(P||R):P;
+  const f=has?feeOf(CALC.kind,CALC.deal,v):null; const pct=r=>(r*100).toFixed(1).replace(/\.0$/,'')+'%'; const [s,b]=sideNames(CALC.deal);
+  const one=f?f.fee:0, vat=x=>CALC.vat?Math.round(x*1.1):x;
+  const say=f?`${CALC.deal} ${CALC.deal==='월세'?`보증금 ${man(P)}만원 / 월 ${R}만원`:man(P)+'만원'}이면 중개보수는 법정 상한 ${pct(f.L.rate)}${f.L.cap!=null?`(한도 ${f.L.cap}만원)`:''} 기준 ${won(vat(one))}${CALC.vat?'(부가세 포함)':''} 이내입니다. 이 범위 안에서 협의해 정합니다.`:'';
+  return `<aside class="calc" role="dialog" aria-label="중개보수 계산기">
+    <div class="row" style="justify-content:space-between"><b>중개보수 계산기</b><button class="btn ghost sm" data-act="calcClose">닫기 ✕</button></div>
+    <div class="chips seg" style="margin-top:10px">${DEALS.map(t=>`<button class="chip ${CALC.deal===t?'on':''}" data-act="calcSet" data-k="deal" data-val="${t}">${t}</button>`).join('')}</div>
+    <div class="chips seg" style="margin-top:6px">${KKINDS.map(t=>`<button class="chip ${CALC.kind===t?'on':''}" data-act="calcSet" data-k="kind" data-val="${t}">${t==='오피스텔'?'주거용 오피스텔':t}</button>`).join('')}</div>
+    <div class="fgrid" style="grid-template-columns:${CALC.deal==='월세'?'1fr 1fr':'1fr'}">
+      <label class="field"><span>${CALC.deal==='매매'?'매매가':CALC.deal==='전세'?'전세금':'보증금'}</span><input type="text" id="calc-price" data-calc="price" value="${esc(CALC.price)}" placeholder="예: 5억4천, 54000" inputmode="text"></label>
+      ${CALC.deal==='월세'?`<label class="field"><span>월세 (만원)</span><input type="number" id="calc-rent" data-calc="rent" value="${esc(CALC.rent)}" placeholder="예: 60"></label>`:''}
+    </div>
+    <div id="calcOut">${f?`
+      <div class="calc-big"><span>한쪽 (${s} 또는 ${b})</span><b>${won(vat(one))}</b></div>
+      <dl class="kv" style="grid-template-columns:110px 1fr;margin-top:6px">
+        <dt>거래가액</dt><dd>${man(v)}만원${CALC.deal==='월세'?` <span class="sub" style="font-size:12px">(보증금+월세×${P+R*100<5000?70:100})</span>`:''}</dd>
+        <dt>상한요율</dt><dd>${pct(f.L.rate)}${f.L.cap!=null?` · 한도 ${f.L.cap}만원`:''}${CALC.kind==='주택 외'?' 이내 협의':''}</dd>
+        <dt>양타 (양쪽)</dt><dd><b>${won(vat(one*2))}</b></dd>
+      </dl>
+      <div class="checks"><label><input type="checkbox" id="calc-vat" data-calc="vat" ${CALC.vat?'checked':''}> 부가세 10% 포함해서 보기</label></div>
+      <div class="say" style="margin:8px 0 0"><div class="row" style="justify-content:space-between"><span class="lbl">손님께 이렇게</span><button class="btn sm" data-act="calcCopy">복사</button></div><p id="calcSay" style="font-size:14px">${esc(say)}</p></div>`
+      :'<p class="sub" style="font-size:13px">금액을 넣으면 바로 계산됩니다.</p>'}</div>
+    <p class="sub" style="font-size:11px;margin-top:8px">경기도 중개보수 요율표 기준 법정 상한입니다. 실제 보수는 상한 이내에서 협의합니다.</p>
+  </aside>`; }
+function renderCalc(){ const el=$('#calcBox'); if(el) el.innerHTML=calcHTML(); }
+function openCalcFor(l){ const d=(l.deals||[])[0]; if(d){ CALC.deal=d.t; CALC.price=String(d.p||''); CALC.rent=d.r?String(d.r):''; } CALC.kind=kindOfListing(l); CALC.open=true; renderCalc(); }
 /* ---------- 상세 서랍 ---------- */
 let DR=null;
 function openListing(id){ const l=S.L.find(x=>x.id===id); if(!l) return; DR={type:'L',id,del:false}; renderDrawer(); }
 function openClient(id){ DR={type:'C',id,del:false}; renderDrawer(); }
-function closeDrawer(){ DR=null; $('#layer').innerHTML=''; }
-function renderDrawer(){ if(!DR){ $('#layer').innerHTML=''; return; }
+function closeDrawer(){ DR=null; $('#layer').innerHTML=''; document.body.classList.remove('has-drawer'); }
+function renderDrawer(){ document.body.classList.toggle('has-drawer',!!DR); if(!DR){ $('#layer').innerHTML=''; return; }
   let h='';
   if(DR.type==='E'){ h=eventDrawer(); }
   else if(DR.type==='K'){ h=contractDrawer(); }
@@ -1100,7 +1139,7 @@ function renderDrawer(){ if(!DR){ $('#layer').innerHTML=''; return; }
     ${(l.tags||[]).length?`<dt>특징</dt><dd>${l.tags.map(t=>`<span class="tag ${t==='급매'?'hot':''}">${esc(t)}</span>`).join(' ')}</dd>`:''}
     ${laterList(l).length?`<dt>나중에 받을 것</dt><dd>${laterList(l).map(t=>`<span class="tag unk">${t}</span>`).join(' ')} <button class="btn sm" data-act="edit" style="margin-left:4px">채우기</button></dd>`:''}
     <dt>상태</dt><dd><select id="dr-st" data-act="lst" style="width:auto">${[['active','진행 중'],['hold','보류'],['done','거래 완료']].map(([k,t])=>`<option value="${k}" ${l.st===k?'selected':''}>${t}</option>`).join('')}</select></dd></dl>
-    <div class="row" style="margin-top:14px"><button class="btn ${picked?'':'pri'}" data-act="pick">${picked?'보여줄 집에서 빼기':'보여줄 집에 담기'}</button><button class="btn" data-act="edit">수정</button><button class="btn" data-act="touch">오늘 확인함</button><button class="btn" data-act="newEvent" data-lid="${l.id}" data-type="집 보여주기">일정 잡기</button><button class="btn red" data-act="newContract" data-lid="${l.id}">계약 등록</button></div>${relatedEvents('lid',l.id)}
+    <div class="row" style="margin-top:14px"><button class="btn ${picked?'':'pri'}" data-act="pick">${picked?'보여줄 집에서 빼기':'보여줄 집에 담기'}</button><button class="btn" data-act="edit">수정</button><button class="btn" data-act="touch">오늘 확인함</button><button class="btn" data-act="newEvent" data-lid="${l.id}" data-type="집 보여주기">일정 잡기</button><button class="btn red" data-act="newContract" data-lid="${l.id}">계약 등록</button><button class="btn" data-act="calcListing" data-id="${l.id}">수수료 계산</button></div>${relatedEvents('lid',l.id)}
     <div class="section" style="margin-top:20px"><h3>이 매물 찾는 대기 손님 ${cl.length}명</h3>${cl.slice(0,8).map(x=>`<div class="mini"><div class="it" data-act="openClient" data-id="${x.c.id}"><b>${esc(x.c.name||'이름 미기재')} ${phoneOf(x.c)}</b>${esc(qSummary(clientQ(x.c)))}</div></div>`).join('')}</div>
     ${l.raw&&canSee()?`<div class="section" style="margin-top:20px"><h3>매물장 원문</h3><pre class="raw">${esc(l.raw)}</pre></div>`:''}
     <div class="row" style="margin-top:20px">${canSee()?`<button class="btn ${DR.del?'red':'ghost'} sm" data-act="delL">${DR.del?'한 번 더 누르면 삭제됩니다':'매물 삭제'}</button>`:''}${isShared()&&S.level>=2?'<button class="btn ghost sm" data-act="lockNow">열람 잠그기</button>':''}</div>`; }
@@ -1246,6 +1285,7 @@ let typeT=null;
 document.addEventListener('input',e=>{ const t=e.target;
   if(t.dataset.q){ const q=qOf(t.dataset.scope); q[t.dataset.q]=t.value; clearTimeout(typeT); typeT=setTimeout(partial,180); return; }
   if(t.dataset.who){ SEEK.who[t.dataset.who]=t.value; return; }
+  if(t.dataset.calc){ if(t.type==='checkbox') return; CALC[t.dataset.calc]=t.value; const out=$('#calcOut'); if(out){ const tmp=document.createElement('div'); tmp.innerHTML=calcHTML(); const n=tmp.querySelector('#calcOut'); if(n) out.innerHTML=n.innerHTML; } return; }
   if(t.dataset.ev&&DR&&DR.ev){ DR.ev[t.dataset.ev]=t.value; return; }
   if(t.dataset.k&&DR&&DR.k){ const f=t.dataset.k; DR.k[f]=t.value; if(f==='feeS'||f==='feeB'){ DR.k[f+'man']=t.value!==''; return; }
     if(f==='price'){ const h=$('#k-price-h'); if(h) h.textContent=parseMan(t.value)?man(parseMan(t.value))+' 만원':''; }
@@ -1259,6 +1299,7 @@ document.addEventListener('change',async e=>{ const t=e.target;
   if(t.dataset.qc){ qOf(t.dataset.scope)[t.dataset.qc]=t.checked; partial(); return; }
   if(t.dataset.q && t.tagName==='SELECT'){ qOf(t.dataset.scope)[t.dataset.q]=t.value; partial(); return; }
   if(t.dataset.ev&&DR&&DR.ev){ DR.ev[t.dataset.ev]=t.value; if(t.tagName==='SELECT'||t.type==='date') renderDrawer(); return; }
+  if(t.dataset.calc==='vat'){ CALC.vat=t.checked; renderCalc(); return; }
   if(t.dataset.k&&DR&&DR.k){ const f=t.dataset.k; DR.k[f]=t.value; if(f==='feeS'||f==='feeB'){ DR.k[f+'man']=t.value!==''; const x=$('#kcalc'); if(x) x.innerHTML=feeBox({...DR.k,price:parseMan(DR.k.price)||0}); } return; }
   if(t.dataset.kc&&DR&&DR.k){ DR.k[t.dataset.kc]=t.checked; const x=$('#kcalc'); if(x) x.innerHTML=feeBox({...DR.k,price:parseMan(DR.k.price)||0}); return; }
   if((t.id==='k-l'||t.id==='k-c')&&DR&&DR.k){ const m=t.value.match(/#(\S+)\s*$/); const id=m?m[1]:'';
@@ -1306,6 +1347,11 @@ document.addEventListener('click',async e=>{
     const patch={deal:q.deal,budget:parseMan(q.budget)||undefined,budgetMin:parseMan(q.budgetMin)||undefined,rentMax:q.rentMax===''?undefined:+q.rentMax,cats:q.cats,areas:q.areas,
       rooms:+q.rooms||undefined,baths:+q.baths||undefined,py:num(q.py),kw:q.kw,elev:q.elev,park:q.park,pet:q.pet,needIns:q.needIns,lh:q.lh,tags:[]};
     DR.cq=null; if(await updateRec('clients',id,patch,'조건을 저장했습니다')) renderDrawer(); return; }
+  if(a==='calcOpen'){ CALC.open=true; renderCalc(); setTimeout(()=>$('#calc-price')?.focus(),30); return; }
+  if(a==='calcClose'){ CALC.open=false; renderCalc(); return; }
+  if(a==='calcSet'){ CALC[t.dataset.k]=t.dataset.val; renderCalc(); return; }
+  if(a==='calcCopy'){ const txt=$('#calcSay')?.textContent||''; try{ await navigator.clipboard.writeText(txt); toast('복사했습니다'); }catch(e){ const r=document.createRange(); r.selectNodeContents($('#calcSay')); const sl=getSelection(); sl.removeAllRanges(); sl.addRange(r); toast('글자를 선택해 두었습니다. Ctrl+C로 복사하세요'); } return; }
+  if(a==='calcListing'){ const l=S.L.find(x=>x.id===t.dataset.id); if(l) openCalcFor(l); return; }
   if(a==='newContract'){ openNewContract({lid:t.dataset.lid,cid:t.dataset.cid}); return; }
   if(a==='openContract'){ openContract(t.dataset.id); return; }
   if(a==='kmode'||a==='kdeal'||a==='kkind'){ DR.k[{kmode:'mode',kdeal:'deal',kkind:'kind'}[a]]=t.dataset.val; DR.k.price=DR.k.price; renderDrawer(); return; }
@@ -1356,6 +1402,7 @@ document.addEventListener('click',async e=>{
 /* ===== 관리자 설정: 구글 Apps Script 웹앱 주소를 따옴표 안에 넣으세요 ===== */
 var CONFIG={ API_URL:'https://script.google.com/macros/s/AKfycby3XFNqjY8JBqJPtk6kN6MS65DwUJ6vbRY0i73Y3pK6vEa5HQYlBU7uaHCjW23Aa85v/exec' };
 route();
+renderCalc();
 loadAll();
 </script>
 </body>
