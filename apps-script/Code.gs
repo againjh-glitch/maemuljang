@@ -11,8 +11,8 @@
  * ■ 처음 배포: 배포 > 새 배포 > 유형: 웹 앱 / 실행: 나 / 액세스 권한: 모든 사용자
  *   구글 시트 자체는 관리자만 볼 수 있게 공유하지 마세요(시트에는 모든 정보가 있습니다).
  */
-const PASSWORD = '여기에-사무실-비밀번호';
-const FULL_PASSWORD = '여기에-열람-비밀번호';
+const PASSWORD = '여기에-사무실-비밀번호'; 0114
+const FULL_PASSWORD = '여기에-열람-비밀번호';yw0114
 
 const SHEETS = { listings: '매물', clients: '손님' };
 // 열람 비밀번호가 있어야 보이는 칸
