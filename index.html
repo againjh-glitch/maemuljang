@@ -128,6 +128,8 @@ textarea{min-height:76px;resize:vertical}
 .tag.hot{background:var(--stamp);color:#fff;font-weight:600}
 .tag.good{background:var(--ok-soft);color:var(--ok)}
 .tag.bad{background:var(--stamp-soft);color:var(--stamp)}
+.tag.coop{background:var(--violet-soft);color:var(--violet);font-weight:600}
+.tip.coopTip{border-left-color:var(--violet);background:var(--violet-soft)} .tip.coopTip b{color:var(--violet)}
 .tag.unk{background:var(--warn-soft);color:var(--warn)}
 .score{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--brand-soft);color:var(--brand)}
 .score.near{background:var(--warn-soft);color:var(--warn)}
@@ -358,7 +360,8 @@ function qSummary(q){ const a=[]; if(q.deal)a.push(q.deal); const B=parseMan(q.b
 /* ---------- 카드 ---------- */
 function cardHTML(x,opt={}){ const l=x.l||x, m=x.s!=null?x:null; const age=ago(l.d);
   const stTag= l.st==='done'?'<span class="tag bad">거래완료</span>': l.st==='hold'?'<span class="tag unk">보류</span>':'';
-  const tags=(l.tags||[]).map(t=>`<span class="tag ${t==='급매'?'hot':''}">${esc(t)}</span>`).join('');
+  const isCoop=l.coop||(l.tags||[]).includes('공동중개');
+  const tags=(isCoop?`<span class="tag coop">공동중개${l.coop?' · '+esc(l.coop):''}</span>`:'')+(l.tags||[]).filter(t=>t!=='공동중개').map(t=>`<span class="tag ${t==='급매'?'hot':''}">${esc(t)}</span>`).join('');
   return `<button class="card ${opt.pick?'pick':''}" data-act="open" data-id="${l.id}">
     <div class="ttl">${esc(title(l))}</div>
     <div class="side">${m?`<span class="score ${m.near?'near':''}">${m.near?'근접':'일치'} ${m.s}</span>`:''}<span class="date ${age>365?'old':''}">${dshort(l.d0||l.d)} 등록${l.d0&&l.d&&l.d!==l.d0?' · '+dshort(l.d)+' 확인':''}</span></div>
@@ -446,7 +449,7 @@ function viewSeek(){
   if(st===3){ const res=runMatch(SEEK.q);
     body=`<h2>4. 우리 매물 추천</h2><p class="sub">${esc(qSummary(SEEK.q))}</p>
     <div class="say"><div class="lbl">이렇게 말하세요</div><p>"말씀하신 조건으로 저희가 가진 집이 ${res.filter(x=>!x.near).length}개 있어요. 먼저 이 집들 보여 드릴게요. 마음에 드시는 곳은 바로 집주인께 연락해서 보러 가실 수 있게 해 드릴게요."</p></div>
-    <div class="tip"><b>보여주기 전</b> ① 집주인·세입자에게 전화해 아직 나와 있는지, 가격 변동 없는지 확인 ② 방문 시간 약속 ③ 1년 넘은 매물은 꼭 진행 여부 먼저 확인. 카드를 누르면 연락처와 원문이 나옵니다. 보여줄 집은 상세 화면에서 <b>"보여줄 집에 담기"</b>.</div>
+    <div class="tip"><b>보여주기 전</b> ① 집주인·세입자에게 전화해 아직 나와 있는지, 가격 변동 없는지 확인 ② 방문 시간 약속 ③ 1년 넘은 매물은 꼭 진행 여부 먼저 확인 ④ <b>공동중개</b> 표시가 있는 집은 집주인이 아니라 <b>상대 부동산</b>에 연락합니다. 카드를 누르면 연락처와 원문이 나옵니다. 보여줄 집은 상세 화면에서 <b>"보여줄 집에 담기"</b>.</div>
     ${SEEK.picks.length?`<h3 style="margin-top:14px">보여줄 집 ${SEEK.picks.length}곳</h3><div class="results">${SEEK.picks.map(id=>S.L.find(l=>l.id===id)).filter(Boolean).map(l=>cardHTML(l,{pick:1})).join('')}</div><h3 style="margin-top:18px">전체 추천</h3>`:''}
     <div class="results">${res.length?res.slice(0,60).map(x=>cardHTML(x,{pick:SEEK.picks.includes(x.l.id)})).join(''):`<div class="empty">조건에 맞는 매물이 없습니다. 예산이나 조건을 조금 넓혀 보거나, 마무리 단계에서 대기 손님으로 등록하세요.</div>`}</div>
     ${res.length>60?`<p class="sub">상위 60건만 표시했습니다. 조건을 좁혀 보세요.</p>`:''}`; }
@@ -940,7 +943,7 @@ function monthGrid(y,m,T){ const first=`${y}-${pad2(m)}-01`; const gs=weekStart(
 /* 일정 입력 서랍 */
 function newEventDraft(p){ return {id:null,st:'plan',date:p.date||todayISO(),time:p.time||'',end:'',type:p.type||'고객 미팅',title:'',place:'',lid:p.lid||'',cid:p.cid||'',who:LSX.get('mj_who')||'',note:''}; }
 function openEvent(id){ const e=S.E.find(x=>x.id===id); if(!e) return; DR={type:'E',id,ev:{...e},del:false}; renderDrawer(); }
-function openNewEvent(p){ DR={type:'E',id:null,ev:newEventDraft(p),del:false}; renderDrawer(); setTimeout(()=>$('#ev-time')?.focus(),50); }
+function openNewEvent(p){ DR={type:'E',id:null,ev:newEventDraft(p),del:false}; const l=p.lid&&S.L.find(x=>x.id===p.lid); if(l&&l.coop){ DR.ev.note=`공동중개: ${l.coop} ${l.coopTel||''} — 방문 전 연락, 비번·동행 확인`; DR.ev.place=DR.ev.place||'현장'; } renderDrawer(); setTimeout(()=>$('#ev-time')?.focus(),50); }
 function eventDrawer(){ const e=DR.ev; const l=e.lid&&S.L.find(x=>x.id===e.lid); const c=e.cid&&S.C.find(x=>x.id===e.cid);
   const lOpt=l?`${title(l)} #${l.id}`:'', cOpt=c?`${c.name||'이름 미기재'} · ${qSummary(clientQ(c))} #${c.id}`:'';
   return `<div class="row" style="justify-content:space-between"><span class="lbl">${DR.id?'일정 수정':'새 일정'}</span><button class="btn ghost sm" data-act="close">닫기 ✕</button></div>
@@ -1130,9 +1133,10 @@ function renderDrawer(){ document.body.classList.toggle('has-drawer',!!DR); if(!
   else if(DR.type==='L'){ const l=S.L.find(x=>x.id===DR.id); if(!l){closeDrawer();return;} const cl=clientsFor(l); const picked=SEEK.picks.includes(l.id);
     h=`<div class="row" style="justify-content:space-between"><span class="lbl">${esc(l.cat)} · ${dshort(l.d)} 접수${l.d0&&l.d0!==l.d?' (최초 '+dshort(l.d0)+')':''}</span><button class="btn ghost sm" data-act="close">닫기 ✕</button></div>
     <h2 style="margin-top:6px">${esc(title(l))}</h2><div class="price" style="margin-top:8px">${priceHTML(l)}</div>
+    ${l.coop||(l.tags||[]).includes('공동중개')?`<div class="tip coopTip"><b>공동중개 매물</b> 집을 보여주기 전에 <b>${esc(l.coop||'상대 부동산')}</b>${l.coopTel?` <span class="phone">${esc(l.coopTel)}</span>`:''}에 먼저 연락해 ① 아직 나와 있는지·가격 ② 방문 시간 ③ 현관 비밀번호나 동행 여부를 확인하세요. 계약하면 우리는 <b>우리 손님 쪽 수수료만</b> 받습니다.</div>`:''}
     ${ago(l.d)>365?'<div class="tip"><b>1년 넘은 매물</b> 보여주기 전 집주인에게 아직 나와 있는지, 가격이 같은지 먼저 확인하세요.</div>':''}
     ${canSee()?'':lockBox('연락처 · 현관 비밀번호 · 원문')}
-    <dl class="kv">${canSee()?`<dt>연락처</dt><dd>${(l.phones||[]).map(p=>`<span class="phone">${esc(p)}</span>`).join('<br>')||'원문 확인'}</dd>
+    <dl class="kv">${canSee()?`<dt>연락처</dt><dd>${(l.phones||[]).map(p=>`<span class="phone">${esc(p)}</span>`).join('<br>')||(l.coop?'상대 부동산을 통해 연락':'원문 확인')}</dd>
     ${l.owner?`<dt>내놓은 분</dt><dd>${esc(l.owner)}</dd>`:''}${l.show?`<dt>집 보는 법</dt><dd class="secret">${esc(l.show)}</dd>`:''}`:''}
     ${l.coop?`<dt>공동중개</dt><dd><b>${esc(l.coop)}</b> ${l.coopTel?`<span class="phone">${esc(l.coopTel)}</span>`:''}</dd>`:''}${l.url?`<dt>링크</dt><dd><a href="${esc(l.url)}" target="_blank" rel="noopener">네이버 부동산에서 보기 ↗</a></dd>`:''}
     <dt>구조</dt><dd>${esc(specs(l))}</dd>${l.note?`<dt>메모</dt><dd>${esc(l.note)}</dd>`:''}
