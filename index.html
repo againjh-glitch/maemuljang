@@ -450,6 +450,7 @@ function viewSeek(){
     body=`<h2>4. 우리 매물 추천</h2><p class="sub">${esc(qSummary(SEEK.q))}</p>
     <div class="say"><div class="lbl">이렇게 말하세요</div><p>"말씀하신 조건으로 저희가 가진 집이 ${res.filter(x=>!x.near).length}개 있어요. 먼저 이 집들 보여 드릴게요. 마음에 드시는 곳은 바로 집주인께 연락해서 보러 가실 수 있게 해 드릴게요."</p></div>
     <div class="tip"><b>보여주기 전</b> ① 집주인·세입자에게 전화해 아직 나와 있는지, 가격 변동 없는지 확인 ② 방문 시간 약속 ③ 1년 넘은 매물은 꼭 진행 여부 먼저 확인 ④ <b>공동중개</b> 표시가 있는 집은 집주인이 아니라 <b>상대 부동산</b>에 연락합니다. 카드를 누르면 연락처와 원문이 나옵니다. 보여줄 집은 상세 화면에서 <b>"보여줄 집에 담기"</b>.</div>
+    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="qcSeek">+ 다른 부동산 매물(공동중개) 추가해서 같이 보여주기</button></div>
     ${SEEK.picks.length?`<h3 style="margin-top:14px">보여줄 집 ${SEEK.picks.length}곳</h3><div class="results">${SEEK.picks.map(id=>S.L.find(l=>l.id===id)).filter(Boolean).map(l=>cardHTML(l,{pick:1})).join('')}</div><h3 style="margin-top:18px">전체 추천</h3>`:''}
     <div class="results">${res.length?res.slice(0,60).map(x=>cardHTML(x,{pick:SEEK.picks.includes(x.l.id)})).join(''):`<div class="empty">조건에 맞는 매물이 없습니다. 예산이나 조건을 조금 넓혀 보거나, 마무리 단계에서 대기 손님으로 등록하세요.</div>`}</div>
     ${res.length>60?`<p class="sub">상위 60건만 표시했습니다. 조건을 좁혀 보세요.</p>`:''}`; }
@@ -672,6 +673,7 @@ function parseTemplate(text){
   const url=T.match(/https?:\/\/\S*(?:naver\.me|land\.naver\.com)\S*/); if(url) f.url=url[0];
   if(!f.ex){ const ex=T.match(/전용\s*([0-9]+(?:\.[0-9]+)?)/); if(ex){ f.ex=ex[1]; } }
   if(!f.sup){ const sp=T.match(/([0-9]+(?:\.[0-9]+)?)[A-Za-z]?\s*(?:㎡|m²|m2)/); if(sp&&(!f.ex||+sp[1]>+f.ex)) f.sup=sp[1]; }
+  { const exm=T.match(/전용\s*([0-9]+(?:\.[0-9]+)?)/); if(exm&&f.ex&&!f.sup&&+exm[1]<+f.ex){ f.sup=f.ex; f.ex=exm[1]; f.py=String(pyOf(+f.sup)); } }
   if((f.sup||f.ex)&&!f.py) f.py=String(pyOf(+(f.sup||f.ex)));
   const fl=T.match(/(\d{1,2}|저|중|고)\s*\/\s*(\d{1,2})\s*층/);
   if(!f.dir){ const d=T.match(/(남동|남서|북동|북서|남|북|동|서)\s*향/); if(d) f.dir=d[1]+'향'; }
@@ -955,6 +957,7 @@ function eventDrawer(){ const e=DR.ev; const l=e.lid&&S.L.find(x=>x.id===e.lid);
     <label class="field"><span>시작 시간</span><input type="time" id="ev-time" data-ev="time" value="${esc(e.time)}" step="600"></label>
     <label class="field"><span>끝나는 시간 (선택)</span><input type="time" id="ev-end" data-ev="end" value="${esc(e.end)}" step="600"></label>
     <label class="field full"><span>제목 (비우면 자동)</span><input type="text" id="ev-title" data-ev="title" value="${esc(e.title)}" placeholder="${esc([e.type,c&&(c.name||'손님'),l&&title(l)].filter(Boolean).join(' · ')||'예: 양우 101-1003 매매 계약')}"></label>
+    <div class="field full"><button class="btn sm" data-act="qcFrom" style="justify-self:start">+ 매물장에 없는 공동중개 매물 바로 등록</button></div>
     <label class="field full"><span>관련 매물</span><input type="text" id="ev-l" list="evLList" value="${esc(lOpt)}" placeholder="단지명·주소로 검색 (예: 양우 101)"><datalist id="evLList">${S.L.filter(x=>x.st!=='done').slice(0,400).map(x=>`<option value="${esc(title(x)+' #'+x.id)}">`).join('')}</datalist></label>
     <label class="field full"><span>관련 손님</span><input type="text" id="ev-c" list="evCList" value="${esc(cOpt)}" placeholder="이름·조건으로 검색"><datalist id="evCList">${S.C.map(x=>`<option value="${esc((x.name||'이름 미기재')+' · '+qSummary(clientQ(x))+' #'+x.id)}">`).join('')}</datalist></label>
     <label class="field"><span>담당자</span><input type="text" id="ev-who" data-ev="who" list="evWList" value="${esc(e.who)}" placeholder="예: 김선훈"><datalist id="evWList">${whoList().map(w=>`<option value="${esc(w)}">`).join('')}</datalist></label>
@@ -1024,6 +1027,7 @@ function contractDrawer(){ const k=DR.k; const l=k.lid&&S.L.find(x=>x.id===k.lid
   <div class="field" style="margin-top:12px"><span class="lbl">중개 구분</span><div class="chips">${KMODES.map(([v,t])=>`<button class="chip ${k.mode===v?'on':''}" data-act="kmode" data-val="${v}">${t}</button>`).join('')}</div>
     <small class="sub" style="font-size:12px">${k.mode==='양타'?`${s}·${b} 양쪽에서 받습니다.`:k.mode==='공동-우리매물'?`우리는 ${s} 쪽만, 상대 부동산은 ${b} 쪽만 받습니다.`:`우리는 ${b}(우리 손님) 쪽만, 상대 부동산은 ${s} 쪽만 받습니다.`}</small></div>
   <div class="fgrid">
+    <div class="field full"><button class="btn sm" data-act="qcFrom" style="justify-self:start">+ 매물장에 없는 공동중개 매물 바로 등록</button></div>
     <label class="field full"><span>매물</span><input type="text" id="k-l" list="kLList" value="${esc(lOpt)}" placeholder="단지명·주소로 검색 (공동중개 매물도 먼저 매물 접수에서 등록)"><datalist id="kLList">${S.L.slice(0,500).map(x=>`<option value="${esc(title(x)+' #'+x.id)}">`).join('')}</datalist></label>
     <label class="field full"><span>손님</span><input type="text" id="k-c" list="kCList" value="${esc(cOpt)}" placeholder="이름·조건으로 검색"><datalist id="kCList">${S.C.map(x=>`<option value="${esc((x.name||'이름 미기재')+' · '+qSummary(clientQ(x))+' #'+x.id)}">`).join('')}</datalist></label>
     ${k.mode!=='양타'?`<label class="field"><span>상대 부동산</span><input type="text" id="k-coop" data-k="coop" value="${esc(k.coop)}" placeholder="예: 두산공인중개사"></label>
@@ -1121,6 +1125,58 @@ function calcHTML(){ if(!CALC.open) return `<button class="calc-fab" data-act="c
   </aside>`; }
 function renderCalc(){ const el=$('#calcBox'); if(el) el.innerHTML=calcHTML(); }
 function openCalcFor(l){ const d=(l.deals||[])[0]; if(d){ CALC.deal=d.t; CALC.price=String(d.p||''); CALC.rent=d.r?String(d.r):''; } CALC.kind=kindOfListing(l); CALC.open=true; renderCalc(); }
+/* ---------- 공동중개 매물 빠른 등록 (일정·계약·손님 응대 중에 바로) ---------- */
+function emptyQC(){ return {paste:'',name:'',dongho:'',addr:'',cat:'아파트',deal:'매매',price:'',rent:'',rooms:'',baths:'',py:'',dir:'',coop:'',coopTel:'',url:'',note:'',msg:''}; }
+function openQuickCoop(back){ DR={type:'Q',qc:emptyQC(),back:back||null}; renderDrawer(); setTimeout(()=>$('#qc-paste')?.focus(),50); }
+function quickCoopDrawer(){ const q=DR.qc; const cx=findComplex(q.name);
+  const backName=DR.back?(DR.back.type==='E'?'일정':DR.back.type==='K'?'계약':'보여줄 집'):'보여줄 집';
+  return `<div class="row" style="justify-content:space-between"><span class="lbl">공동중개 매물 빠른 등록</span><button class="btn ghost sm" data-act="qcCancel">${DR.back?'← 돌아가기':'닫기 ✕'}</button></div>
+  <h2 style="margin-top:6px">다른 부동산 매물 바로 등록</h2>
+  <p class="sub" style="font-size:13px">저장하면 매물장에 <b>공동중개</b>로 올라가고, 지금 쓰던 ${backName}에 바로 연결됩니다.</p>
+  <label class="field" style="margin-top:12px"><span>네이버 매물 글자·링크 붙여넣기 (선택)</span><textarea id="qc-paste" data-qq="paste" placeholder="네이버 매물 상세에서 단지명·가격부터 중개사무소 전화까지 드래그해 복사 → 붙여넣기&#10;링크만 붙여넣어도 됩니다">${esc(q.paste)}</textarea></label>
+  <div class="row" style="margin-top:6px"><button class="btn sm" data-act="qcParse">자동으로 채우기</button><span class="sub" style="margin:0;font-size:12px">${esc(q.msg)}</span></div>
+  <div class="fgrid">
+    <label class="field"><span>단지·건물</span><input type="text" id="qc-name" data-qq="name" list="cxList2" value="${esc(q.name)}" placeholder="예: 풍림"><datalist id="cxList2">${COMPLEXES.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist></label>
+    <label class="field"><span>동·호수 (층만 알아도 됨)</span><input type="text" id="qc-dongho" data-qq="dongho" value="${esc(q.dongho)}" placeholder="예: 106동 12층"></label>
+    <label class="field full"><span>주소 (단지 밖 빌라·단독)</span><input type="text" id="qc-addr" data-qq="addr" value="${esc(q.addr)}" placeholder="예: 소사본동 219-24 진영리더스빌 1동 303호"></label>
+    <label class="field"><span>거래</span><select id="qc-deal" data-qq="deal">${DEALS.map(t=>`<option ${q.deal===t?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label class="field"><span>${q.deal==='월세'?'보증금':'금액'}</span><input type="text" id="qc-price" data-qq="price" value="${esc(q.price)}" placeholder="예: 2억8천"></label>
+    ${q.deal==='월세'?`<label class="field"><span>월세 (만원)</span><input type="number" id="qc-rent" data-qq="rent" value="${esc(q.rent)}"></label>`:''}
+    <label class="field"><span>종류</span><select id="qc-cat" data-qq="cat">${CATS.map(t=>`<option ${q.cat===t?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label class="field"><span>방 / 욕실</span><div class="row" style="flex-wrap:nowrap"><input type="number" id="qc-rooms" data-qq="rooms" value="${esc(q.rooms)}" placeholder="방"><input type="number" id="qc-baths" data-qq="baths" value="${esc(q.baths)}" placeholder="욕실"></div></label>
+    <label class="field"><span>상대 부동산</span><input type="text" id="qc-coop" data-qq="coop" value="${esc(q.coop)}" placeholder="예: 두산공인중개사"></label>
+    <label class="field"><span>상대 부동산 연락처</span><input type="tel" id="qc-coopTel" data-qq="coopTel" value="${esc(q.coopTel)}" placeholder="032-000-0000"></label>
+    <label class="field full"><span>네이버 링크</span><input type="text" id="qc-url" data-qq="url" value="${esc(q.url)}" placeholder="https://naver.me/…"></label>
+    <label class="field full"><span>메모</span><input type="text" id="qc-note" data-qq="note" value="${esc(q.note)}" placeholder="예: 동행 필요, 저녁 7시 이후"></label>
+  </div>
+  ${cx?`<p class="sub" style="font-size:12px">${esc(cx.name)} 단지 정보(연식·엘베·주차·평형)는 저장할 때 자동으로 채웁니다.</p>`:''}
+  <div class="row" style="margin-top:16px"><button class="btn red" data-act="qcSave">매물장에 공동중개로 등록하고 연결</button></div>`; }
+function qcApplyParsed(){ const q=DR.qc; const p=parseTemplate(q.paste); const f=p.f; let n=0;
+  const set=(k,v)=>{ if(v!=null&&v!==''){ q[k]=String(v); n++; } };
+  if(p.cx) set('name',p.cx.name); set('dongho',f.dongho); if(!p.cx) set('addr',f.addr); set('cat',f.cat||(p.cx?p.cx.cat:''));
+  if(f.deals&&f.deals[0]){ set('deal',f.deals[0].t); set('price',f.deals[0].p); if(f.deals[0].r) set('rent',f.deals[0].r); }
+  set('rooms',f.rooms); set('baths',f.baths); set('py',f.py); set('dir',f.dir); set('coop',f.coop); set('coopTel',f.coopTel); set('url',f.url);
+  if(f.note) set('note',f.note);
+  q.sup=f.sup||''; q.ex=f.ex||'';
+  q.msg=n?`${n}개 칸을 채웠습니다. 확인 후 저장하세요.`:'알아볼 수 있는 내용이 없습니다. 직접 입력해 주세요.'; }
+async function qcSave(){ const q=DR.qc; const cx=findComplex(q.name);
+  if(!q.name&&!q.addr&&!q.dongho){ toast('단지 이름이나 주소를 넣어 주세요'); return; }
+  const p=parseMan(q.price); if(!p){ toast('금액을 넣어 주세요'); return; }
+  const deal={t:q.deal,p}; if(q.deal==='월세') deal.r=+q.rent||0;
+  const num=v=>{ const n=parseFloat(v); return isNaN(n)?undefined:n; };
+  const doc={id:'L'+Date.now().toString(36),st:'active',d:todayISO(),d0:todayISO(),cat:q.cat||(cx&&cx.cat)||'기타',deals:[deal],name:cx?cx.name:q.name.trim(),
+    addr:[q.addr.trim(),q.dongho.trim()].filter(Boolean).join(' '),area:cx&&cx.area||'',rooms:num(q.rooms),baths:num(q.baths),py:num(q.py),dir:q.dir||'',
+    year:cx&&cx.built?+cx.built.slice(0,4):undefined,elev:cx?cx.elev:undefined,park:cx?cx.park:undefined,
+    tags:['공동중개'],note:[q.sup||q.ex?[q.sup&&'공급 '+q.sup+'㎡',q.ex&&'전용 '+q.ex+'㎡'].filter(Boolean).join(' / '):'',q.note].filter(Boolean).join(' / '),
+    coop:q.coop.trim(),coopTel:q.coopTel.trim(),url:q.url.trim(),src:'공동중개 빠른 등록',raw:q.paste||''};
+  if(cx&&cx.types&&cx.types.length===1&&doc.rooms==null){ const t=cx.types[0]; doc.rooms=t.rooms; doc.baths=t.baths; if(!doc.py) doc.py=t.sup?pyOf(t.sup):pyOf(t.ex); }
+  Object.keys(doc).forEach(k=>{ if(doc[k]===undefined||doc[k]===''||doc[k]===null) delete doc[k]; });
+  if(!(await putRec('listings',doc,'공동중개 매물을 등록했습니다'))) return;
+  const back=DR.back;
+  if(back&&back.type==='E'){ DR=back; DR.ev.lid=doc.id; if(!DR.ev.note) DR.ev.note=`공동중개: ${doc.coop||''} ${doc.coopTel||''} — 방문 전 연락, 비번·동행 확인`.trim(); renderDrawer(); }
+  else if(back&&back.type==='K'){ DR=back; const n=newContract({lid:doc.id,cid:DR.k.cid}); Object.assign(DR.k,{lid:doc.id,mode:'공동-상대매물',coop:n.coop,coopTel:n.coopTel,deal:n.deal,kind:n.kind,price:n.price,rent:n.rent}); renderDrawer(); }
+  else { if(!SEEK.picks.includes(doc.id)) SEEK.picks.push(doc.id); closeDrawer(); render(); toast('보여줄 집에 담았습니다'); } }
+
 /* ---------- 상세 서랍 ---------- */
 let DR=null;
 function openListing(id){ const l=S.L.find(x=>x.id===id); if(!l) return; DR={type:'L',id,del:false}; renderDrawer(); }
@@ -1130,6 +1186,7 @@ function renderDrawer(){ document.body.classList.toggle('has-drawer',!!DR); if(!
   let h='';
   if(DR.type==='E'){ h=eventDrawer(); }
   else if(DR.type==='K'){ h=contractDrawer(); }
+  else if(DR.type==='Q'){ h=quickCoopDrawer(); }
   else if(DR.type==='L'){ const l=S.L.find(x=>x.id===DR.id); if(!l){closeDrawer();return;} const cl=clientsFor(l); const picked=SEEK.picks.includes(l.id);
     h=`<div class="row" style="justify-content:space-between"><span class="lbl">${esc(l.cat)} · ${dshort(l.d)} 접수${l.d0&&l.d0!==l.d?' (최초 '+dshort(l.d0)+')':''}</span><button class="btn ghost sm" data-act="close">닫기 ✕</button></div>
     <h2 style="margin-top:6px">${esc(title(l))}</h2><div class="price" style="margin-top:8px">${priceHTML(l)}</div>
@@ -1290,6 +1347,7 @@ document.addEventListener('input',e=>{ const t=e.target;
   if(t.dataset.q){ const q=qOf(t.dataset.scope); q[t.dataset.q]=t.value; clearTimeout(typeT); typeT=setTimeout(partial,180); return; }
   if(t.dataset.who){ SEEK.who[t.dataset.who]=t.value; return; }
   if(t.dataset.calc){ if(t.type==='checkbox') return; CALC[t.dataset.calc]=t.value; const out=$('#calcOut'); if(out){ const tmp=document.createElement('div'); tmp.innerHTML=calcHTML(); const n=tmp.querySelector('#calcOut'); if(n) out.innerHTML=n.innerHTML; } return; }
+  if(t.dataset.qq&&DR&&DR.qc){ DR.qc[t.dataset.qq]=t.value; return; }
   if(t.dataset.ev&&DR&&DR.ev){ DR.ev[t.dataset.ev]=t.value; return; }
   if(t.dataset.k&&DR&&DR.k){ const f=t.dataset.k; DR.k[f]=t.value; if(f==='feeS'||f==='feeB'){ DR.k[f+'man']=t.value!==''; return; }
     if(f==='price'){ const h=$('#k-price-h'); if(h) h.textContent=parseMan(t.value)?man(parseMan(t.value))+' 만원':''; }
@@ -1303,6 +1361,7 @@ document.addEventListener('change',async e=>{ const t=e.target;
   if(t.dataset.qc){ qOf(t.dataset.scope)[t.dataset.qc]=t.checked; partial(); return; }
   if(t.dataset.q && t.tagName==='SELECT'){ qOf(t.dataset.scope)[t.dataset.q]=t.value; partial(); return; }
   if(t.dataset.ev&&DR&&DR.ev){ DR.ev[t.dataset.ev]=t.value; if(t.tagName==='SELECT'||t.type==='date') renderDrawer(); return; }
+  if(t.dataset.qq&&DR&&DR.qc){ DR.qc[t.dataset.qq]=t.value; if(t.tagName==='SELECT') renderDrawer(); return; }
   if(t.dataset.calc==='vat'){ CALC.vat=t.checked; renderCalc(); return; }
   if(t.dataset.k&&DR&&DR.k){ const f=t.dataset.k; DR.k[f]=t.value; if(f==='feeS'||f==='feeB'){ DR.k[f+'man']=t.value!==''; const x=$('#kcalc'); if(x) x.innerHTML=feeBox({...DR.k,price:parseMan(DR.k.price)||0}); } return; }
   if(t.dataset.kc&&DR&&DR.k){ DR.k[t.dataset.kc]=t.checked; const x=$('#kcalc'); if(x) x.innerHTML=feeBox({...DR.k,price:parseMan(DR.k.price)||0}); return; }
@@ -1356,6 +1415,11 @@ document.addEventListener('click',async e=>{
   if(a==='calcSet'){ CALC[t.dataset.k]=t.dataset.val; renderCalc(); return; }
   if(a==='calcCopy'){ const txt=$('#calcSay')?.textContent||''; try{ await navigator.clipboard.writeText(txt); toast('복사했습니다'); }catch(e){ const r=document.createRange(); r.selectNodeContents($('#calcSay')); const sl=getSelection(); sl.removeAllRanges(); sl.addRange(r); toast('글자를 선택해 두었습니다. Ctrl+C로 복사하세요'); } return; }
   if(a==='calcListing'){ const l=S.L.find(x=>x.id===t.dataset.id); if(l) openCalcFor(l); return; }
+  if(a==='qcFrom'){ openQuickCoop(DR); return; }
+  if(a==='qcSeek'){ openQuickCoop(null); return; }
+  if(a==='qcCancel'){ if(DR.back){ DR=DR.back; renderDrawer(); } else closeDrawer(); return; }
+  if(a==='qcParse'){ DR.qc.paste=$('#qc-paste')?.value||DR.qc.paste; qcApplyParsed(); renderDrawer(); return; }
+  if(a==='qcSave'){ await qcSave(); return; }
   if(a==='newContract'){ openNewContract({lid:t.dataset.lid,cid:t.dataset.cid}); return; }
   if(a==='openContract'){ openContract(t.dataset.id); return; }
   if(a==='kmode'||a==='kdeal'||a==='kkind'){ DR.k[{kmode:'mode',kdeal:'deal',kkind:'kind'}[a]]=t.dataset.val; DR.k.price=DR.k.price; renderDrawer(); return; }
