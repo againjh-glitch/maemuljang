@@ -1329,12 +1329,15 @@ function tgSend(text,chat){ const tg=S.tg||{}; const c=chat||tg.chat; if(!tg.tok
 function tgNotify(l){ if(S.tg&&S.tg.token&&S.tg.chat) tgSend(tgText(l)); }
 async function tgFindChats(){ const tg=S.tg||{}; if(!tg.token){ toast('구글 시트 설정 탭 B3에 봇 토큰을 먼저 넣고 새로고침하세요'); return; }
   const box=$('#tgFound'); if(box) box.innerHTML='<p class="sub">찾는 중…</p>';
-  try{ const r=await fetch(`https://api.telegram.org/bot${tg.token}/getUpdates`); const j=await r.json();
+  try{ let me=''; try{ const m=await (await fetch(`https://api.telegram.org/bot${tg.token}/getMe`)).json(); if(m.ok) me=`<p class="sub" style="font-size:13px">B3 토큰의 봇: <b>${esc(m.result.first_name||'')}</b> (@${esc(m.result.username||'')}) — 알림방에 초대한 봇과 같은지 확인하세요.</p>`; }catch(e){}
+    const r=await fetch(`https://api.telegram.org/bot${tg.token}/getUpdates`); const j=await r.json();
     if(!j.ok){ box.innerHTML=`<div class="tip"><b>토큰이 맞지 않습니다</b> 설정 탭 B3의 토큰을 확인하세요. (${esc(j.description||'')})</div>`; return; }
     const chats={}; (j.result||[]).forEach(u=>{ const c=(u.message||u.my_chat_member||u.channel_post||u.edited_message||{}).chat; if(c) chats[c.id]=c.title||((c.first_name||'')+' (개인 대화)'); });
     const ids=Object.keys(chats);
-    box.innerHTML=ids.length?`<p class="sub" style="font-size:13px">아래 방 번호를 복사해서 구글 시트 <b>설정 탭 B4</b>에 붙여넣고, 이 화면을 새로고침하세요.</p>${ids.map(id=>`<div class="row" style="margin-top:6px"><b>${esc(chats[id])}</b><span class="phone">${esc(id)}</span><button class="btn sm" data-act="tgCopy" data-v="${esc(id)}">번호 복사</button><button class="btn sm" data-act="tgTest" data-v="${esc(id)}">이 방으로 테스트</button></div>`).join('')}`
-      :'<div class="tip"><b>찾은 방이 없습니다</b> 봇을 알림방에 초대한 뒤, 그 방에 아무 메시지나 하나 보내고 다시 눌러 주세요.</div>'; }
+    box.innerHTML=me+(ids.length?`<p class="sub" style="font-size:13px">아래 방 번호를 복사해서 구글 시트 <b>설정 탭 B4</b>에 붙여넣고, 이 화면을 새로고침하세요.</p>${ids.map(id=>`<div class="row" style="margin-top:6px"><b>${esc(chats[id])}</b><span class="phone">${esc(id)}</span><button class="btn sm" data-act="tgCopy" data-v="${esc(id)}">번호 복사</button><button class="btn sm" data-act="tgTest" data-v="${esc(id)}">이 방으로 테스트</button></div>`).join('')}`
+      :`<div class="tip"><b>찾은 방이 없습니다</b> 알림방에서 <code>/start@${esc((me.match(/@([\w]+)/)||[])[1]||'봇아이디')}</code> 를 보내고 다시 눌러 주세요. 그래도 안 되면 아래처럼 방 번호를 직접 넣으세요.</div>
+      <div class="field" style="margin-top:8px"><span>방 번호 직접 확인: 크롬에서 <a href="https://web.telegram.org/a/" target="_blank" rel="noopener">web.telegram.org/a</a> 를 열고 알림방을 누르면, 주소창 끝 <code>#-…</code> 숫자가 방 번호입니다.</span>
+      <div class="row"><input type="text" id="tg-manual" placeholder="예: -4512345678" style="max-width:220px"><button class="btn sm" data-act="tgTestManual">이 번호로 테스트</button></div></div>`); }
   catch(e){ box.innerHTML=`<div class="tip"><b>여기서 바로 확인이 안 됩니다</b> 아래 링크를 새 탭에서 열면 글자가 나오는데, <code>"chat":{"id":-100…</code> 의 숫자(마이너스 포함)가 방 번호입니다. 그 숫자를 설정 탭 B4에 넣으세요.<br><a href="https://api.telegram.org/bot${esc(tg.token)}/getUpdates" target="_blank" rel="noopener">방 번호 확인 페이지 열기 ↗</a></div>`; } }
 function tgSetupHTML(){ const tg=S.tg; if(!isShared()) return ''; const on=tg&&tg.token&&tg.chat;
   return `<section class="panel" style="max-width:720px"><h3>텔레그램 알림</h3>
@@ -1454,6 +1457,7 @@ document.addEventListener('click',async e=>{
   if(a==='qcSave'){ await qcSave(); return; }
   if(a==='tgFind'){ await tgFindChats(); return; }
   if(a==='tgTest'){ const ok=tgSend('✅ 매물장 알림 연결 테스트입니다. 새 매물이 등록되면 이 방으로 알려 드립니다.',t.dataset.v); toast(ok?'보냈습니다. 텔레그램 알림방을 확인하세요':'토큰·방 번호를 확인하세요'); return; }
+  if(a==='tgTestManual'){ let v=($('#tg-manual')?.value||'').trim().replace(/^#/,''); if(!v){ toast('방 번호를 넣어 주세요'); return; } tgSend('✅ 매물장 알림 연결 테스트입니다.',v); toast('보냈습니다. 알림방에 메시지가 오면 이 번호를 설정 탭 B4에 넣으세요'); return; }
   if(a==='tgCopy'){ try{ await navigator.clipboard.writeText(t.dataset.v); toast('방 번호를 복사했습니다. 설정 탭 B4에 붙여넣으세요'); }catch(e){ toast('번호를 직접 선택해 복사하세요: '+t.dataset.v); } return; }
   if(a==='newContract'){ openNewContract({lid:t.dataset.lid,cid:t.dataset.cid}); return; }
   if(a==='openContract'){ openContract(t.dataset.id); return; }
