@@ -1290,7 +1290,7 @@ async function loadAll(quiet){
   if(!isShared()){ localLoad(); S.live=true; setSync('이 컴퓨터에만 저장 중 · 설정 필요',false); refresh(); return; }
   if(pending) return;
   try{ if(!quiet) setSync('불러오는 중',false); const j=await apiGet(); if(pending) return;
-    S.L=(j.listings||[]).map(fromRowL).filter(l=>l.id); S.C=(j.clients||[]).map(fromRowC).filter(c=>c.id); S.level=j.level||1;
+    S.L=(j.listings||[]).map(fromRowL).filter(l=>l.id); S.C=(j.clients||[]).map(fromRowC).filter(c=>c.id); S.level=j.level||1; S.tg=j.tg||null;
     S.schedOld=!Array.isArray(j.schedule); S.E=(j.schedule||[]).map(fromRowS).filter(e=>e.id); S.K=((j.tabs||{})['계약']||[]).map(fromRowK).filter(k=>k.id);
     if(fullKey()&&S.level<2){ SSX.set('mj_full',null); LSX.set('mj_full',null); }
     S.live=true; setSync((S.level>=2?'전체 열람 중':'공유 매물장 연결됨')+' · '+new Date().toTimeString().slice(0,5),true); refresh(); }
@@ -1300,7 +1300,7 @@ const KEY={listings:'L',clients:'C',schedule:'E','계약':'K'};
 async function putRec(kind,rec,okMsg){ const arr=S[KEY[kind]]; const i=arr.findIndex(x=>x.id===rec.id); const exists=i>=0; if(exists) arr[i]=rec; else arr.push(rec); refresh();
   if(!isShared()){ localSave(); if(okMsg) toast(okMsg+' (이 컴퓨터에만)'); return true; }
   const row=kind==='listings'?toRowL(rec):kind==='clients'?toRowC(rec):kind==='계약'?toRowK(rec):toRowS(rec); if(exists&&!canSee()) (SECRET_H[kind]||[]).forEach(h=>delete row[h]);
-  pending++; try{ await apiPost({action:'upsert',sheet:kind,id:rec.id,rec:row}); if(okMsg) toast(okMsg); return true; }
+  pending++; try{ await apiPost({action:'upsert',sheet:kind,id:rec.id,rec:row}); if(okMsg) toast(okMsg); if(kind==='listings'&&!exists) tgNotify(rec); return true; }
   catch(e){ toast(String(e.message)==='sheet'?'구글 Apps Script를 새 버전으로 배포해야 일정을 저장할 수 있습니다.':'저장하지 못했습니다. 인터넷 연결과 설정을 확인하고 다시 눌러 주세요.'); return false; }
   finally{ pending--; if(!pending) loadAll(true); } }
 async function updateRec(kind,id,patch,okMsg){ const arr=S[KEY[kind]]; const cur=arr.find(x=>x.id===id); if(!cur) return false; return putRec(kind,{...cur,...patch},okMsg); }
@@ -1311,6 +1311,37 @@ async function removeRec(kind,id,okMsg){ S[KEY[kind]]=S[KEY[kind]].filter(x=>x.i
 setInterval(()=>{ if(isShared()&&document.visibilityState==='visible') loadAll(true); },60000);
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&isShared()) loadAll(true); });
 
+
+/* ---------- 텔레그램 알림 (새 매물 → 알림방) ----------
+   봇 토큰·방 번호는 구글 시트 「설정」 탭 B3·B4. 전송은 이 사이트(브라우저)에서 바로 합니다. */
+function tgText(l){ const coop=l.coop||(l.tags||[]).includes('공동중개');
+  const spec=[l.year&&l.year+'년',l.py&&l.py+'평',(l.rooms!=null||l.baths!=null)&&`방${l.rooms??'?'}/욕${l.baths??'?'}`,l.dir,l.elev===true?'엘베O':l.elev===false?'엘베X':'',l.park===true?'주차O':l.park===false?'주차X':''].filter(Boolean).join(' · ');
+  return [`🏠 새 매물${coop?' [공동중개]':''} — ${l.cat||''}`,
+    `[${(l.deals||[]).map(d=>d.t+' '+dealTxt(d)).join(' / ')}]`,
+    [l.name,l.addr].filter(Boolean).join(' ')+(l.area?` (${l.area})`:''), spec,
+    (l.tags||[]).filter(t=>t!=='공동중개').length?'특징: '+(l.tags||[]).filter(t=>t!=='공동중개').join(', '):'',
+    l.note?'메모: '+l.note:'', coop&&l.coop?`상대 부동산: ${l.coop} ${l.coopTel||''}`:'',
+    S.tg&&S.tg.withPhone&&(l.phones||[]).length?'연락처: '+l.phones.join(', '):'',
+    l.url?'네이버: '+l.url:'', S.tg&&S.tg.site?'👉 '+S.tg.site:''].filter(Boolean).join('\n'); }
+function tgSend(text,chat){ const tg=S.tg||{}; const c=chat||tg.chat; if(!tg.token||!c) return false;
+  const u=`https://api.telegram.org/bot${encodeURIComponent(tg.token).replace('%3A',':')}/sendMessage?chat_id=${encodeURIComponent(c)}&disable_web_page_preview=true&text=${encodeURIComponent(text)}`;
+  try{ fetch(u,{mode:'no-cors'}); return true; }catch(e){ return false; } }
+function tgNotify(l){ if(S.tg&&S.tg.token&&S.tg.chat) tgSend(tgText(l)); }
+async function tgFindChats(){ const tg=S.tg||{}; if(!tg.token){ toast('구글 시트 설정 탭 B3에 봇 토큰을 먼저 넣고 새로고침하세요'); return; }
+  const box=$('#tgFound'); if(box) box.innerHTML='<p class="sub">찾는 중…</p>';
+  try{ const r=await fetch(`https://api.telegram.org/bot${tg.token}/getUpdates`); const j=await r.json();
+    if(!j.ok){ box.innerHTML=`<div class="tip"><b>토큰이 맞지 않습니다</b> 설정 탭 B3의 토큰을 확인하세요. (${esc(j.description||'')})</div>`; return; }
+    const chats={}; (j.result||[]).forEach(u=>{ const c=(u.message||u.my_chat_member||u.channel_post||u.edited_message||{}).chat; if(c) chats[c.id]=c.title||((c.first_name||'')+' (개인 대화)'); });
+    const ids=Object.keys(chats);
+    box.innerHTML=ids.length?`<p class="sub" style="font-size:13px">아래 방 번호를 복사해서 구글 시트 <b>설정 탭 B4</b>에 붙여넣고, 이 화면을 새로고침하세요.</p>${ids.map(id=>`<div class="row" style="margin-top:6px"><b>${esc(chats[id])}</b><span class="phone">${esc(id)}</span><button class="btn sm" data-act="tgCopy" data-v="${esc(id)}">번호 복사</button><button class="btn sm" data-act="tgTest" data-v="${esc(id)}">이 방으로 테스트</button></div>`).join('')}`
+      :'<div class="tip"><b>찾은 방이 없습니다</b> 봇을 알림방에 초대한 뒤, 그 방에 아무 메시지나 하나 보내고 다시 눌러 주세요.</div>'; }
+  catch(e){ box.innerHTML=`<div class="tip"><b>여기서 바로 확인이 안 됩니다</b> 아래 링크를 새 탭에서 열면 글자가 나오는데, <code>"chat":{"id":-100…</code> 의 숫자(마이너스 포함)가 방 번호입니다. 그 숫자를 설정 탭 B4에 넣으세요.<br><a href="https://api.telegram.org/bot${esc(tg.token)}/getUpdates" target="_blank" rel="noopener">방 번호 확인 페이지 열기 ↗</a></div>`; } }
+function tgSetupHTML(){ const tg=S.tg; if(!isShared()) return ''; const on=tg&&tg.token&&tg.chat;
+  return `<section class="panel" style="max-width:720px"><h3>텔레그램 알림</h3>
+    <p class="sub" style="font-size:13px">새 매물이 등록되면 알림방으로 메시지를 보냅니다. 봇 토큰은 구글 시트 <b>설정 탭 B3</b>, 방 번호는 <b>B4</b>.</p>
+    <div class="row" style="margin-top:8px"><span class="tag ${on?'good':'unk'}">${on?'켜짐':tg&&tg.token?'방 번호 필요':'꺼짐 (B3에 토큰 없음)'}</span>
+      ${tg&&tg.token?'<button class="btn sm" data-act="tgFind">알림방 찾기</button>':''}${on?'<button class="btn sm" data-act="tgTest">테스트 메시지 보내기</button>':''}</div>
+    <div id="tgFound" style="margin-top:8px"></div></section>`; }
 /* ---------- 설정 화면 ---------- */
 function viewSetup(){ const u=apiUrl(), fixed=!!CONFIG.API_URL; const lvTxt=!isShared()?'연결 전 (이 컴퓨터에만 저장)':S.level>=2?'전체 열람 (연락처·현관 비밀번호 보임)':S.level===1?'기본 (연락처·현관 비밀번호 가림)':'확인 중';
   return `<h1>공유 설정</h1><p class="sub">모든 직원이 같은 매물장을 보려면 사무실 비밀번호를 입력합니다. 처음 한 번만 하면 됩니다.</p>
@@ -1325,6 +1356,7 @@ function viewSetup(){ const u=apiUrl(), fixed=!!CONFIG.API_URL; const lvTxt=!isS
   <section class="panel" style="max-width:720px"><h3>2단계 · 열람 비밀번호 (연락처·현관 비밀번호)</h3>
     <p class="sub" style="font-size:13px">집주인·손님 연락처, 현관 비밀번호, 매물장 원문, 삭제는 이 비밀번호를 입력한 사람만 됩니다. 기본은 브라우저를 닫거나 30분 동안 쓰지 않으면 다시 잠깁니다.</p>
     ${isShared()&&S.level>=2?'<div class="row" style="margin-top:10px"><span class="tag good">열람 중</span><button class="btn sm" data-act="lockNow">지금 잠그기</button></div>':(isShared()?lockBox('열람 비밀번호'):'<p class="sub">먼저 1단계를 연결하세요.</p>')}</section>
+  ${tgSetupHTML()}
   <section class="panel" style="max-width:720px"><h3>비밀번호를 잊었을 때</h3>
     <p class="sub" style="font-size:13px">관리자가 구글 시트의 <b>「설정」 탭</b>을 열면 B1(사무실), B2(열람)에 적혀 있습니다. 거기서 바꾸면 바로 적용됩니다.</p></section>`; }
 let rT=null; function refresh(){ clearTimeout(rT); rT=setTimeout(()=>{ const a=document.activeElement; const inDrawer=a&&a.closest&&a.closest('.drawer'); if(a&&a.matches('input,textarea,select')&&a.id){ partial(); } else render(); if(DR&&!inDrawer) renderDrawer(); },60); }
@@ -1420,6 +1452,9 @@ document.addEventListener('click',async e=>{
   if(a==='qcCancel'){ if(DR.back){ DR=DR.back; renderDrawer(); } else closeDrawer(); return; }
   if(a==='qcParse'){ DR.qc.paste=$('#qc-paste')?.value||DR.qc.paste; qcApplyParsed(); renderDrawer(); return; }
   if(a==='qcSave'){ await qcSave(); return; }
+  if(a==='tgFind'){ await tgFindChats(); return; }
+  if(a==='tgTest'){ const ok=tgSend('✅ 매물장 알림 연결 테스트입니다. 새 매물이 등록되면 이 방으로 알려 드립니다.',t.dataset.v); toast(ok?'보냈습니다. 텔레그램 알림방을 확인하세요':'토큰·방 번호를 확인하세요'); return; }
+  if(a==='tgCopy'){ try{ await navigator.clipboard.writeText(t.dataset.v); toast('방 번호를 복사했습니다. 설정 탭 B4에 붙여넣으세요'); }catch(e){ toast('번호를 직접 선택해 복사하세요: '+t.dataset.v); } return; }
   if(a==='newContract'){ openNewContract({lid:t.dataset.lid,cid:t.dataset.cid}); return; }
   if(a==='openContract'){ openContract(t.dataset.id); return; }
   if(a==='kmode'||a==='kdeal'||a==='kkind'){ DR.k[{kmode:'mode',kdeal:'deal',kkind:'kind'}[a]]=t.dataset.val; DR.k.price=DR.k.price; renderDrawer(); return; }
